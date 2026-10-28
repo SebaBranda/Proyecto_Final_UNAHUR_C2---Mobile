@@ -54,22 +54,34 @@ src/
     login.js              login (solo técnicos)
     (tecnico)/            pantallas del técnico, en pestañas
       _layout.js          pestañas y botón "Salir"
-      index.js            Mis asignaciones      → GET /reclamos
-      servicio-en-curso.js Servicio en curso    → GET /reclamos?estado=En progreso
-      vehiculo.js         Vehículo              → GET /vehiculos
-      resumen.js          Resumen de servicios  → GET /jornadas
-  components/             piezas reutilizables
-  context/SesionContext.js sesión del técnico: usuario, jornada activa y vehículo (llegan en el login)
+      index.js            Mis asignaciones: filtros por estado, lista paginada y detalle → GET /reclamos
+      servicio-en-curso.js En curso: detalle del reclamo en progreso y finalizarlo → PATCH /reclamos/:id/estado
+      vehiculo.js         Vehículo: datos, seguro y último control → GET /vehiculos
+      resumen.js          Jornada: iniciar/finalizar, desempeño e historial → /jornadas
+  components/
+    ui.js                 piezas visuales comunes (tarjetas, botones, campos, estados)
+    DetalleReclamo.js     detalle de un reclamo y formulario para finalizarlo
+    CierreJornada.js      control final de la jornada (kilometraje, litros, estado y 4 fotos)
+    SelectorFotos.js      fotos con cámara o galería
+    GaleriaImagenes.js    imágenes guardadas de un registro
+  context/
+    SesionContext.js      sesión del técnico: usuario, jornada activa y vehículo
+    useUbicacionEnJornada.js con la jornada activa, manda la ubicación cada 5 minutos
   services/
     apiClient.js          axios con la URL de la API y el token
     api.js                llamadas a la API (mismos endpoints que la web)
+  utils/
+    imagenes.js           elegir fotos y comprimirlas (máx. 600 KB) antes de subirlas
+    formato.js            fechas, horas, duraciones y kilómetros
   theme/colores.js        colores de marca (los mismos de la web)
 ```
+
+**Permisos del celular:** cámara y fotos (para adjuntar imágenes al finalizar un reclamo o la jornada) y ubicación (solo con la jornada activa y la app abierta, para el mapa del admin). Se piden la primera vez que se usan.
 
 **Rutas protegidas:** sin sesión solo se puede ver el login; con sesión, las pantallas del técnico.
 Al iniciar o cerrar sesión, Expo Router cambia de pantalla solo (`Stack.Protected` en `src/app/_layout.js`).
 
-**Sesión:** como en la web, el token vive solo en memoria; al cerrar la app hay que volver a ingresar.
+**Sesión:** el token vive solo en memoria; al cerrar la app hay que volver a ingresar. Hay una sola sesión por usuario: si el técnico ingresa desde la web u otro celular, esta sesión se cierra y la app vuelve al login con el aviso.
 Para mantenerla abierta se puede guardar el token con `expo-secure-store`.
 
 ## Comandos

@@ -14,7 +14,7 @@ import { useSesion } from '../context/SesionContext.js';
 import { colores } from '../theme/colores.js';
 
 export default function Login() {
-  const { iniciarSesion } = useSesion();
+  const { iniciarSesion, aviso } = useSesion();
   const [usuario, establecerUsuario] = useState('');
   const [contrasena, establecerContrasena] = useState('');
   const [error, establecerError] = useState('');
@@ -63,6 +63,7 @@ export default function Login() {
           editable={!ingresando}
           accessibilityLabel="Contraseña"
         />
+        {aviso && !error ? <Text style={estilos.aviso}>{aviso}</Text> : null}
         {error ? <Text style={estilos.error}>{error}</Text> : null}
 
         <Pressable
@@ -101,6 +102,7 @@ const estilos = StyleSheet.create({
     color: colores.texto,
   },
   error: { color: colores.error, fontSize: 14 },
+  aviso: { color: colores.primario, fontSize: 14 },
   boton: { backgroundColor: colores.primario, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   botonPresionado: { opacity: 0.8 },
   textoBoton: { color: '#fff', fontSize: 16, fontWeight: '700' },

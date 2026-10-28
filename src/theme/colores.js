@@ -10,4 +10,6 @@ export const colores = {
   borde: '#D9E2E8',
   exito: '#2E7D32',
   error: '#C62828',
+  advertencia: '#ED6C02',
+  info: '#0288D1',
 };

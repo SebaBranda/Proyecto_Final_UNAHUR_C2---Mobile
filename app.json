@@ -23,7 +23,20 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "GalacticApp usa la cámara para sacar fotos del vehículo y del trabajo realizado.",
+          "photosPermission": "GalacticApp accede a tus fotos para adjuntarlas a reclamos y controles del vehículo."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GalacticApp comparte tu ubicación con tu coordinador mientras tu jornada está activa."
+        }
+      ]
     ],
     "scheme": "galacticapp"
   }

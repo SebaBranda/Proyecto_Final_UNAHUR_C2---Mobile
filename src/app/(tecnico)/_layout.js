@@ -9,7 +9,7 @@ const pestanas = [
   { name: 'index', title: 'Mis asignaciones', icono: 'clipboard-outline' },
   { name: 'servicio-en-curso', title: 'En curso', icono: 'construct-outline' },
   { name: 'vehiculo', title: 'Vehículo', icono: 'car-outline' },
-  { name: 'resumen', title: 'Resumen', icono: 'stats-chart-outline' },
+  { name: 'resumen', title: 'Jornada', icono: 'time-outline' },
 ];
 
 export default function LayoutTecnico() {

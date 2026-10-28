@@ -16,6 +16,11 @@ async function listarTodasLasPaginas(ruta, params = {}) {
   return datos;
 }
 
+// Pide UNA página de un listado: { datos, paginacion }. Los filtros vacíos o "Todos" no se mandan.
+const pedirPagina = async (ruta, filtros = {}) => (await apiClient.get(ruta, {
+  params: Object.fromEntries(Object.entries(filtros).filter(([, valor]) => valor !== '' && valor != null && valor !== 'Todos')),
+})).data;
+
 // Mismos endpoints que usa la web. Para el técnico, el backend ya filtra y devuelve solo sus datos,
 // con los datos relacionados adentro (por ejemplo, cada reclamo trae su cliente).
 
@@ -29,14 +34,20 @@ export const reclamosApi = {
   listar: async () => listarTodasLasPaginas('/reclamos'),
   // Servicio en curso: solo el reclamo en progreso.
   listarEnCurso: async () => listarTodasLasPaginas('/reclamos', { estado: 'En progreso' }),
+  // Una página: { datos, paginacion, totalesPorEstado }. filtros: { pagina, limite, estado }.
+  pagina: (filtros) => pedirPagina('/reclamos', filtros),
 };
 
 export const vehiculosApi = {
   // Devuelve solo el vehículo asignado al técnico.
-  listar: async () => (await apiClient.get('/vehiculos')).data,
+  listar: async () => listarTodasLasPaginas('/vehiculos'),
 };
 
 export const jornadasApi = {
   // Sus jornadas, cada una con los servicios finalizados en ella.
-  listar: async () => (await apiClient.get('/jornadas')).data,
+  listar: async () => listarTodasLasPaginas('/jornadas'),
+  // Una página de sus jornadas (las más nuevas primero). filtros: { pagina, limite }.
+  pagina: (filtros) => pedirPagina('/jornadas', filtros),
+  // Contadores: { totalServicios, serviciosEnPeriodo } desde la fecha indicada (ISO).
+  resumen: async (desde) => (await apiClient.get('/jornadas/resumen', { params: desde ? { desde } : {} })).data,
 };

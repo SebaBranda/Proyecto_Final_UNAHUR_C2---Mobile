@@ -3,8 +3,10 @@ import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, V
 import { useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import TarjetaSesion from '../../components/TarjetaSesion.js';
+import JornadaInactiva from '../../components/JornadaInactiva.js';
 import { ModalReclamo } from '../../components/DetalleReclamo.js';
 import { ChipEstado, EstadoPantalla } from '../../components/ui.js';
+import { useSesion } from '../../context/SesionContext.js';
 import { reclamosApi } from '../../services/api.js';
 import { formatearFecha } from '../../utils/formato.js';
 import { colores } from '../../theme/colores.js';
@@ -14,7 +16,13 @@ const POR_PAGINA = 20;
 
 // Mis asignaciones: sus reclamos filtrados por estado, de a 20 (se cargan más al llegar al final).
 // Al tocar uno se abre el detalle; si está en progreso, se puede finalizar desde ahí.
+// Sin jornada activa no se piden los reclamos: se muestra solo el resumen para iniciarla.
 export default function MisAsignaciones() {
+  const { sesion } = useSesion();
+  return sesion.jornadaActiva ? <ListaAsignaciones /> : <JornadaInactiva />;
+}
+
+function ListaAsignaciones() {
   const [estado, establecerEstado] = useState('Todos');
   const [reclamos, establecerReclamos] = useState([]);
   const [paginacion, establecerPaginacion] = useState(null);

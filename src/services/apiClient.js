@@ -27,6 +27,12 @@ export const alCerrarseLaSesion = (funcion) => {
   alPerderSesion = funcion;
 };
 
+// Función que avisa a la app que el técnico ya no tiene la jornada activa (la registra SesionContext).
+let alPerderJornada = null;
+export const alQuedarSinJornada = (funcion) => {
+  alPerderJornada = funcion;
+};
+
 // Un 401 con sesión abierta significa que el token venció o que la sesión se cerró porque se
 // ingresó con el mismo usuario desde otro lugar (una sola sesión por usuario): vuelve al login.
 apiClient.interceptors.response.use(
@@ -38,6 +44,11 @@ apiClient.interceptors.response.use(
       tokenActual = null;
       const datos = error.response.data || {};
       alPerderSesion?.(datos.codigo === 'SESION_REEMPLAZADA' ? datos.mensaje : 'Tu sesión venció. Ingresá de nuevo.');
+    }
+    // Sin jornada activa el backend no deja ver ni trabajar los reclamos: la app muestra la
+    // pantalla para iniciarla (por ejemplo, si la jornada se finalizó desde la web).
+    if (error.response?.status === 403 && error.response.data?.codigo === 'JORNADA_INACTIVA') {
+      alPerderJornada?.();
     }
     return Promise.reject(error);
   },

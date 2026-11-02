@@ -2,12 +2,20 @@ import { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { DetalleReclamo } from '../../components/DetalleReclamo.js';
+import JornadaInactiva from '../../components/JornadaInactiva.js';
 import { Aviso, EstadoPantalla } from '../../components/ui.js';
+import { useSesion } from '../../context/SesionContext.js';
 import { reclamosApi } from '../../services/api.js';
 import { colores } from '../../theme/colores.js';
 
 // Servicio en curso: el reclamo en progreso, con todo su detalle y la opción de finalizarlo.
+// Sin jornada activa se muestra solo el resumen para iniciarla.
 export default function ServicioEnCurso() {
+  const { sesion } = useSesion();
+  return sesion.jornadaActiva ? <ReclamoEnCurso /> : <JornadaInactiva />;
+}
+
+function ReclamoEnCurso() {
   const [reclamo, establecerReclamo] = useState(null);
   const [cargando, establecerCargando] = useState(true);
   const [actualizando, establecerActualizando] = useState(false);

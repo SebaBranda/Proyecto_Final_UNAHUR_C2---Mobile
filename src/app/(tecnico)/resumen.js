@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import CierreJornada from '../../components/CierreJornada.js';
 import { Aviso, Boton, Opciones, Tarjeta, Titulo } from '../../components/ui.js';
 import { useSesion } from '../../context/SesionContext.js';
-import { jornadasApi } from '../../services/api.js';
+import { jornadasApi, reclamosApi } from '../../services/api.js';
 import { formatearDuracion, formatearFecha, formatearHora, formatearKm } from '../../utils/formato.js';
 import { colores } from '../../theme/colores.js';
 
@@ -33,8 +33,10 @@ const kilometrajeFinal = (jornada) => jornada.controlFinal?.kilometraje
 
 // Jornada: iniciar y finalizar la jornada, resueltas por período y el historial de jornadas.
 export default function Jornada() {
-  const { sesion, actualizarSesion, errorUbicacion } = useSesion();
-  const { usuario, jornadaActiva, vehiculo } = sesion;
+  const {
+    sesion, actualizarSesion, iniciarJornada, errorUbicacion,
+  } = useSesion();
+  const { jornadaActiva, vehiculo } = sesion;
   const [ahora, establecerAhora] = useState(() => Date.now());
   const [iniciando, establecerIniciando] = useState(false);
   const [cierreAbierto, establecerCierreAbierto] = useState(false);
@@ -47,6 +49,8 @@ export default function Jornada() {
   const [cargandoMas, establecerCargandoMas] = useState(false);
   const [actualizando, establecerActualizando] = useState(false);
   const [errorDatos, establecerErrorDatos] = useState('');
+  // Reclamos en curso: si finaliza la jornada, quedan para la próxima.
+  const [reclamosEnCurso, establecerReclamosEnCurso] = useState(0);
 
   // El tiempo transcurrido de la jornada activa se actualiza cada 30 segundos.
   useEffect(() => {
@@ -80,10 +84,18 @@ export default function Jornada() {
     }
   }, [actualizarSesion]);
 
+  const cargarReclamosEnCurso = useCallback(async () => {
+    try {
+      establecerReclamosEnCurso((await reclamosApi.resumen()).enProgreso || 0);
+    } catch {
+      establecerReclamosEnCurso(0);
+    }
+  }, []);
+
   const recargar = useCallback(async () => {
-    await Promise.all([cargarResumen(), cargarJornadas(1)]);
+    await Promise.all([cargarResumen(), cargarJornadas(1), cargarReclamosEnCurso()]);
     establecerActualizando(false);
-  }, [cargarResumen, cargarJornadas]);
+  }, [cargarResumen, cargarJornadas, cargarReclamosEnCurso]);
 
   useFocusEffect(useCallback(() => {
     recargar();
@@ -100,8 +112,7 @@ export default function Jornada() {
     establecerExito('');
     establecerIniciando(true);
     try {
-      const jornada = await jornadasApi.iniciar(usuario.id, vehiculo ? Number(vehiculo.kilometraje?.actual) || 0 : undefined);
-      actualizarSesion({ jornadaActiva: jornada });
+      await iniciarJornada();
       establecerAhora(Date.now());
       cargarJornadas(1);
     } catch (causa) {
@@ -134,6 +145,9 @@ export default function Jornada() {
               <Text style={estilos.duracion}>{formatearDuracion(jornadaActiva.inicio, ahora)}</Text>
               <Text style={estilos.secundario}>desde las {formatearHora(jornadaActiva.inicio)}</Text>
             </View>
+            {reclamosEnCurso > 0 ? (
+              <Aviso tipo="info">Tenés un reclamo en curso. Si finalizás la jornada, lo vas a poder continuar en la próxima.</Aviso>
+            ) : null}
             <Boton icono="log-out-outline" onPress={() => { establecerExito(''); establecerCierreAbierto(true); }}>Finalizar jornada</Boton>
             {errorUbicacion ? <Aviso>{errorUbicacion}</Aviso> : (
               <Text style={estilos.secundario}>Tu ubicación se comparte con el mapa mientras la app está abierta.</Text>

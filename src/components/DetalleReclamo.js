@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSesion } from '../context/SesionContext.js';
 import { reclamosApi } from '../services/api.js';
 import { subirImagenes } from '../utils/imagenes.js';
 import { formatearFecha } from '../utils/formato.js';
@@ -77,7 +76,6 @@ function Enlace({ icono, texto, accion, url }) {
 }
 
 function FinalizarReclamo({ reclamo, lugaresLibres, alFinalizar }) {
-  const { sesion } = useSesion();
   const [abierto, establecerAbierto] = useState(false);
   const [comentario, establecerComentario] = useState('');
   const [fotos, establecerFotos] = useState([]);
@@ -100,7 +98,6 @@ function FinalizarReclamo({ reclamo, lugaresLibres, alFinalizar }) {
       const actualizado = await reclamosApi.finalizar(reclamo.id, {
         comentarioFinalizacion: comentario.trim(),
         imagenes,
-        jornadaId: sesion.jornadaActiva?.id,
       });
       alFinalizar?.(actualizado);
     } catch (causa) {

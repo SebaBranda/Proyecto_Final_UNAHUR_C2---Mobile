@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { authApi } from '../services/api.js';
-import { alCerrarseLaSesion, establecerToken, URL_API } from '../services/apiClient.js';
+import { authApi, jornadasApi } from '../services/api.js';
+import {
+  alCerrarseLaSesion, alQuedarSinJornada, establecerToken, URL_API,
+} from '../services/apiClient.js';
 import { useUbicacionEnJornada } from './useUbicacionEnJornada.js';
 
 const SesionContext = createContext(null);
@@ -29,7 +31,13 @@ export function SesionProvider({ children }) {
       establecerSesion(null);
       establecerAviso(motivo);
     });
-    return () => alCerrarseLaSesion(null);
+    alQuedarSinJornada(() => {
+      establecerSesion((actual) => (actual ? { ...actual, jornadaActiva: null } : actual));
+    });
+    return () => {
+      alCerrarseLaSesion(null);
+      alQuedarSinJornada(null);
+    };
   }, []);
 
   const iniciarSesion = useCallback(async (usuario, contrasena) => {
@@ -64,6 +72,18 @@ export function SesionProvider({ children }) {
     establecerSesion((actual) => (actual ? { ...actual, ...cambios } : actual));
   }, []);
 
+  // Inicia la jornada (la hora la pone el backend). Con vehículo, su kilometraje actual es el
+  // kilometraje inicial. Al quedar activa, se desbloquean los reclamos en todas las pantallas.
+  const iniciarJornada = useCallback(async () => {
+    const { usuario, vehiculo } = sesion;
+    const jornada = await jornadasApi.iniciar(
+      usuario.id,
+      vehiculo ? Number(vehiculo.kilometraje?.actual) || 0 : undefined,
+    );
+    actualizarSesion({ jornadaActiva: jornada });
+    return jornada;
+  }, [sesion, actualizarSesion]);
+
   // Con la jornada activa, la ubicación del técnico se manda al mapa del admin cada 5 minutos.
   const errorUbicacion = useUbicacionEnJornada(sesion?.usuario?.id, Boolean(sesion?.jornadaActiva));
 
@@ -79,8 +99,10 @@ export function SesionProvider({ children }) {
   }, []);
 
   const valor = useMemo(
-    () => ({ sesion, aviso, errorUbicacion, iniciarSesion, actualizarSesion, cerrarSesion }),
-    [sesion, aviso, errorUbicacion, iniciarSesion, actualizarSesion, cerrarSesion],
+    () => ({
+      sesion, aviso, errorUbicacion, iniciarSesion, actualizarSesion, iniciarJornada, cerrarSesion,
+    }),
+    [sesion, aviso, errorUbicacion, iniciarSesion, actualizarSesion, iniciarJornada, cerrarSesion],
   );
   return <SesionContext.Provider value={valor}>{children}</SesionContext.Provider>;
 }

@@ -23,9 +23,11 @@ async function comprimir(uri, anchoOriginal) {
   throw new Error('La imagen es demasiado pesada. Probá con otra.');
 }
 
-// Saca una foto con la cámara u elige una de la galería. origen: 'camara' | 'galeria'.
-// Devuelve un data URL listo para subir, o null si el técnico canceló.
-export async function elegirImagen(origen) {
+// Saca una foto con la cámara o elige fotos de la galería. origen: 'camara' | 'galeria'.
+// cantidadMaxima: cuántas fotos se pueden elegir (los lugares libres). La galería permite elegir
+// varias a la vez; la cámara saca de a una.
+// Devuelve una lista de data URLs listos para subir (vacía si el técnico canceló).
+export async function elegirImagenes(origen, cantidadMaxima = 1) {
   const permiso = origen === 'camara'
     ? await ImagePicker.requestCameraPermissionsAsync()
     : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -34,10 +36,24 @@ export async function elegirImagen(origen) {
       ? 'Habilitá el permiso de cámara para sacar la foto.'
       : 'Habilitá el permiso de fotos para elegir una imagen.');
   }
-  const abrir = origen === 'camara' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
-  const resultado = await abrir({ mediaTypes: ['images'], quality: 1 });
-  if (resultado.canceled || !resultado.assets?.length) return null;
-  return comprimir(resultado.assets[0].uri, resultado.assets[0].width);
+  const resultado = origen === 'camara'
+    ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 })
+    : await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      allowsMultipleSelection: cantidadMaxima > 1,
+      selectionLimit: cantidadMaxima,
+      // En iPhone numera las fotos en el orden en que se tocan y las devuelve en ese orden.
+      orderedSelection: true,
+    });
+  if (resultado.canceled || !resultado.assets?.length) return [];
+  // Algunas galerías de Android no respetan el límite: se toman solo las que entran.
+  const elegidas = resultado.assets.slice(0, cantidadMaxima);
+  const comprimidas = [];
+  for (const imagen of elegidas) {
+    comprimidas.push(await comprimir(imagen.uri, imagen.width));
+  }
+  return comprimidas;
 }
 
 // Sube las imágenes (data URLs) y devuelve sus ids, para guardarlos en el campo "imagenes".

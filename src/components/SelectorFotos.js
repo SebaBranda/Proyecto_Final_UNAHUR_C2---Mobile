@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { elegirImagen } from '../utils/imagenes.js';
+import { elegirImagenes } from '../utils/imagenes.js';
 import { colores } from '../theme/colores.js';
 import { Aviso, Boton } from './ui.js';
 
@@ -16,8 +16,8 @@ export default function SelectorFotos({ fotos, alCambiar, maximo, deshabilitado 
     establecerError('');
     establecerProcesando(true);
     try {
-      const foto = await elegirImagen(origen);
-      if (foto) alCambiar([...fotos, foto]);
+      const nuevas = await elegirImagenes(origen, maximo - fotos.length);
+      if (nuevas.length) alCambiar([...fotos, ...nuevas]);
     } catch (causa) {
       establecerError(causa.message || 'No se pudo cargar la foto.');
     } finally {

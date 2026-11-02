@@ -21,15 +21,17 @@ export const reclamosApi = {
   pagina: (filtros) => pedirPagina('/reclamos', filtros),
   // Servicio en curso: el reclamo en progreso (como mucho uno).
   enCurso: async () => (await pedirPagina('/reclamos', { estado: 'En progreso', limite: 5 })).datos || [],
+  // Cuántos reclamos tiene pendientes: { jornadaActiva, asignados, enProgreso, urgentes }.
+  // Responde aunque no tenga la jornada activa (solo cantidades, sin datos de clientes).
+  resumen: async () => (await apiClient.get('/reclamos/resumen')).data,
   // Finaliza el reclamo con un comentario y los ids de las imágenes del trabajo (ya subidas).
-  // jornadaId (la jornada activa) hace que el servicio cuente en esa jornada y en el desempeño.
-  finalizar: async (reclamoId, { comentarioFinalizacion, imagenes, jornadaId }) => (
+  // El backend lo asocia a la jornada activa, así cuenta en esa jornada y en el desempeño.
+  finalizar: async (reclamoId, { comentarioFinalizacion, imagenes }) => (
     await apiClient.patch(`/reclamos/${reclamoId}/estado`, {
       estado: 'Finalizado',
       comentarioFinalizacion,
       imagenes,
       finalizadoEn: new Date().toISOString(),
-      jornadaId: jornadaId ?? null,
     })
   ).data,
 };

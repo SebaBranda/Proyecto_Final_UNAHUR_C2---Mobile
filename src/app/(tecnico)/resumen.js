@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import CierreJornada from '../../components/CierreJornada.js';
 import { Aviso, Boton, Opciones, Tarjeta, Titulo } from '../../components/ui.js';
@@ -12,6 +12,7 @@ const PERIODOS = [
   { valor: 'semanal', etiqueta: 'Semana' },
   { valor: 'mensual', etiqueta: 'Mes' },
   { valor: 'anual', etiqueta: 'Año' },
+  { valor: 'personalizado', etiqueta: 'Fechas' },
   { valor: 'todos', etiqueta: 'Todo' },
 ];
 const POR_PAGINA = 10;
@@ -25,6 +26,13 @@ function inicioDelPeriodo(periodo) {
   if (periodo === 'mensual') fecha.setDate(1);
   if (periodo === 'anual') fecha.setMonth(0, 1);
   return fecha.toISOString();
+}
+
+function rangoDelPeriodo(periodo, desdePersonalizado, hastaPersonalizado) {
+  if (periodo === 'personalizado') {
+    return { desde: desdePersonalizado, hasta: hastaPersonalizado };
+  }
+  return { desde: inicioDelPeriodo(periodo), hasta: '' };
 }
 
 // Kilometraje final de una jornada cerrada (los datos viejos usan otros nombres de campo).
@@ -43,6 +51,8 @@ export default function Jornada() {
   const [error, establecerError] = useState('');
   const [exito, establecerExito] = useState('');
   const [periodo, establecerPeriodo] = useState('semanal');
+  const [desdePersonalizado, establecerDesdePersonalizado] = useState('');
+  const [hastaPersonalizado, establecerHastaPersonalizado] = useState('');
   const [resumen, establecerResumen] = useState(null);
   const [jornadas, establecerJornadas] = useState([]);
   const [paginacion, establecerPaginacion] = useState(null);
@@ -51,6 +61,8 @@ export default function Jornada() {
   const [errorDatos, establecerErrorDatos] = useState('');
   // Reclamos en curso: si finaliza la jornada, quedan para la próxima.
   const [reclamosEnCurso, establecerReclamosEnCurso] = useState(0);
+  const rango = rangoDelPeriodo(periodo, desdePersonalizado, hastaPersonalizado);
+  const rangoPersonalizadoIncompleto = periodo === 'personalizado' && (!rango.desde || !rango.hasta);
 
   // El tiempo transcurrido de la jornada activa se actualiza cada 30 segundos.
   useEffect(() => {
@@ -61,15 +73,31 @@ export default function Jornada() {
 
   const cargarResumen = useCallback(async () => {
     try {
-      establecerResumen(await jornadasApi.resumen(inicioDelPeriodo(periodo)));
+      if (rangoPersonalizadoIncompleto) {
+        establecerResumen(null);
+        establecerErrorDatos('');
+        return;
+      }
+      establecerResumen(await jornadasApi.resumen(rango.desde, rango.hasta));
     } catch {
       establecerErrorDatos('No se pudo cargar el resumen. Deslizá hacia abajo para reintentar.');
     }
-  }, [periodo]);
+  }, [rango.desde, rango.hasta, rangoPersonalizadoIncompleto]);
 
   const cargarJornadas = useCallback(async (pagina = 1) => {
+    if (rangoPersonalizadoIncompleto) {
+      establecerJornadas([]);
+      establecerPaginacion(null);
+      establecerErrorDatos('');
+      return;
+    }
     try {
-      const respuesta = await jornadasApi.pagina({ pagina, limite: POR_PAGINA });
+      const respuesta = await jornadasApi.pagina({
+        pagina,
+        limite: POR_PAGINA,
+        desde: rango.desde,
+        hasta: rango.hasta,
+      });
       establecerJornadas((actuales) => (pagina === 1 ? respuesta.datos : [...actuales, ...respuesta.datos]));
       establecerPaginacion(respuesta.paginacion);
       // La primera página trae la jornada más nueva: si se inició o finalizó desde la web,
@@ -82,7 +110,7 @@ export default function Jornada() {
     } catch {
       establecerErrorDatos('No se pudieron cargar tus jornadas. Deslizá hacia abajo para reintentar.');
     }
-  }, [actualizarSesion]);
+  }, [actualizarSesion, rango.desde, rango.hasta, rangoPersonalizadoIncompleto]);
 
   const cargarReclamosEnCurso = useCallback(async () => {
     try {
@@ -163,8 +191,21 @@ export default function Jornada() {
       <Tarjeta>
         <Titulo icono="stats-chart-outline" subtitulo="Reclamos que finalizaste.">Desempeño</Titulo>
         <Opciones opciones={PERIODOS} valor={periodo} alCambiar={establecerPeriodo} />
+        {periodo === 'personalizado' ? (
+          <View style={estilos.fechas}>
+            <CampoFecha etiqueta="Desde" valor={desdePersonalizado} alCambiar={establecerDesdePersonalizado} />
+            <CampoFecha etiqueta="Hasta" valor={hastaPersonalizado} alCambiar={establecerHastaPersonalizado} />
+            {rangoPersonalizadoIncompleto ? (
+              <Text style={estilos.secundario}>Completá ambas fechas para consultar el historial.</Text>
+            ) : null}
+          </View>
+        ) : null}
         <View style={estilos.indicadores}>
-          <Indicador valor={resumen?.serviciosEnPeriodo} etiqueta="En el período" color={colores.exito} />
+          <Indicador
+            valor={resumen?.horasTrabajadas != null ? `${resumen.horasTrabajadas} h` : null}
+            etiqueta="Horas trabajadas"
+            color={colores.exito}
+          />
           <Indicador valor={resumen?.totalServicios} etiqueta="En total" color={colores.primario} />
         </View>
       </Tarjeta>
@@ -172,7 +213,8 @@ export default function Jornada() {
       <Tarjeta>
         <Titulo icono="calendar-outline">Mis jornadas</Titulo>
         <Aviso>{errorDatos}</Aviso>
-        {!paginacion && !errorDatos ? <ActivityIndicator color={colores.primario} /> : null}
+        {!paginacion && !errorDatos && !rangoPersonalizadoIncompleto ? <ActivityIndicator color={colores.primario} /> : null}
+        {rangoPersonalizadoIncompleto ? <Text style={estilos.secundario}>El historial se cargará al consultar un rango completo.</Text> : null}
         {paginacion && !jornadas.length ? <Text style={estilos.secundario}>Todavía no registraste jornadas.</Text> : null}
         {jornadas.map((jornada) => <FilaJornada key={jornada.id} jornada={jornada} ahora={ahora} />)}
         {paginacion?.tieneSiguiente ? (
@@ -192,6 +234,24 @@ function Indicador({ valor, etiqueta, color }) {
     <View style={[estilos.indicador, { borderColor: color }]}>
       <Text style={[estilos.valorIndicador, { color }]}>{valor ?? '–'}</Text>
       <Text style={estilos.secundario}>{etiqueta}</Text>
+    </View>
+  );
+}
+
+function CampoFecha({ etiqueta, valor, alCambiar }) {
+  return (
+    <View style={estilos.campoFecha}>
+      <Text style={estilos.etiquetaFecha}>{etiqueta}</Text>
+      <TextInput
+        value={valor}
+        onChangeText={alCambiar}
+        placeholder="AAAA-MM-DD"
+        placeholderTextColor={colores.textoSecundario}
+        keyboardType="numbers-and-punctuation"
+        maxLength={10}
+        style={estilos.entradaFecha}
+        accessibilityLabel={etiqueta}
+      />
     </View>
   );
 }
@@ -235,6 +295,10 @@ const estilos = StyleSheet.create({
   indicadores: { flexDirection: 'row', gap: 10 },
   indicador: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 12, gap: 2 },
   valorIndicador: { fontSize: 26, fontWeight: '800' },
+  fechas: { gap: 8 },
+  campoFecha: { gap: 4 },
+  etiquetaFecha: { color: colores.textoSecundario, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+  entradaFecha: { borderWidth: 1, borderColor: colores.borde, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: colores.texto, backgroundColor: colores.superficie },
   jornada: { borderTopWidth: 1, borderTopColor: colores.borde, paddingTop: 10, gap: 3 },
   filaJornada: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   fechaJornada: { fontSize: 15, fontWeight: '700', color: colores.texto },

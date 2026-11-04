@@ -24,6 +24,14 @@ export const reclamosApi = {
   // Cuántos reclamos tiene pendientes: { jornadaActiva, asignados, enProgreso, urgentes }.
   // Responde aunque no tenga la jornada activa (solo cantidades, sin datos de clientes).
   resumen: async () => (await apiClient.get('/reclamos/resumen')).data,
+  // Comienza una asignación. Con vehículo, controlInicio debe incluir kilometraje, litros, estado e imágenes.
+  iniciar: async (reclamoId, vehiculoId, controlInicio) => (
+    await apiClient.patch(`/reclamos/${reclamoId}/estado`, {
+      estado: 'En progreso',
+      vehiculoId,
+      inicioServicio: controlInicio,
+    })
+  ).data,
   // Finaliza el reclamo con un comentario y los ids de las imágenes del trabajo (ya subidas).
   // El backend lo asocia a la jornada activa, así cuenta en esa jornada y en el desempeño.
   finalizar: async (reclamoId, { comentarioFinalizacion, imagenes }) => (
@@ -48,8 +56,10 @@ export const vehiculosApi = {
 export const jornadasApi = {
   // Una página de sus jornadas (las más nuevas primero), cada una con sus servicios finalizados.
   pagina: (filtros) => pedirPagina('/jornadas', filtros),
-  // Contadores: { totalServicios, serviciosEnPeriodo } desde la fecha indicada (ISO).
-  resumen: async (desde) => (await apiClient.get('/jornadas/resumen', { params: desde ? { desde } : {} })).data,
+  // Contadores: { totalServicios, serviciosEnPeriodo, horasTrabajadas } dentro del rango indicado.
+  resumen: async (desde, hasta) => (await apiClient.get('/jornadas/resumen', {
+    params: Object.fromEntries([['desde', desde], ['hasta', hasta]].filter(([, valor]) => valor)),
+  })).data,
   // El backend pone la hora de inicio; si ya hay una jornada activa responde 409.
   // Sin vehículo asignado, kilometrajeInicial va undefined (no se manda).
   iniciar: async (tecnicoId, kilometrajeInicial) => (

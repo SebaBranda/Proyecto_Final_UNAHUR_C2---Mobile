@@ -23,6 +23,7 @@ export default function MisAsignaciones() {
 }
 
 function ListaAsignaciones() {
+  const { sesion } = useSesion();
   const [estado, establecerEstado] = useState('Todos');
   const [reclamos, establecerReclamos] = useState([]);
   const [paginacion, establecerPaginacion] = useState(null);
@@ -118,6 +119,9 @@ function ListaAsignaciones() {
       <ModalReclamo
         reclamo={elegido}
         cerrar={() => establecerElegido(null)}
+        vehiculo={sesion.vehiculo}
+        tieneReclamoEnProgreso={(totales['En progreso'] || 0) > 0}
+        alIniciar={() => { establecerElegido(null); cargar(1); }}
         alFinalizar={() => { establecerElegido(null); cargar(1); }}
       />
     </View>

@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { jornadasApi } from '../services/api.js';
+import { jornadasApi, vehiculosApi } from '../services/api.js';
 import { subirImagenes } from '../utils/imagenes.js';
-import { aNumero, formatearKm } from '../utils/formato.js';
+import { formatearKm } from '../utils/formato.js';
 import { colores } from '../theme/colores.js';
 import SelectorFotos from './SelectorFotos.js';
 import { Aviso, Boton, Campo, Opciones } from './ui.js';
+import { NIVELES_COMBUSTIBLE } from '../utils/combustible.js';
+import { vaciarHistorial } from '../services/historialUbicacion.js';
+import { registrarEventoUbicacion } from '../services/eventoUbicacion.js';
 
 // El backend pide exactamente 4 fotos del vehículo y del tablero para cerrar la jornada.
 const FOTOS_REQUERIDAS = 4;
@@ -15,14 +18,15 @@ const ESTADOS_VEHICULO = [
   { valor: 'Activo', etiqueta: 'Activo' },
   { valor: 'Fuera de servicio', etiqueta: 'Fuera de servicio' },
 ];
+const aNumero = (texto) => Number(String(texto).replace(',', '.'));
 
 // Control final de la jornada (igual que en la web): kilometraje, litros, estado del vehículo,
-// observaciones y 4 fotos. El backend finaliza la jornada y registra el control en el vehículo.
+// observaciones y 4 fotos. Registra el control del vehículo y después finaliza la jornada.
 // alFinalizar({ jornada, vehiculo }) se llama cuando sale bien.
 export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFinalizar }) {
   const kilometrajeMinimo = Number(vehiculo?.kilometraje?.actual) || 0;
   const [kilometraje, establecerKilometraje] = useState('');
-  const [litros, establecerLitros] = useState('');
+  const [nivelCombustible, establecerNivelCombustible] = useState('');
   const [estado, establecerEstado] = useState('Activo');
   const [observaciones, establecerObservaciones] = useState('');
   const [fotos, establecerFotos] = useState([]);
@@ -33,8 +37,7 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
     const km = aNumero(kilometraje);
     if (kilometraje === '' || !Number.isFinite(km)) return 'Completá el kilometraje del tablero.';
     if (km < kilometrajeMinimo) return `El kilometraje no puede ser menor a ${formatearKm(kilometrajeMinimo)}.`;
-    const combustible = aNumero(litros);
-    if (litros === '' || !Number.isFinite(combustible) || combustible < 0) return 'Completá los litros de nafta.';
+    if (!nivelCombustible) return 'Seleccioná el nivel de combustible.';
     if (fotos.length !== FOTOS_REQUERIDAS) return `Agregá las ${FOTOS_REQUERIDAS} fotos del vehículo y del tablero.`;
     return '';
   };
@@ -47,6 +50,8 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
     try {
       // Sin vehículo asignado no hay control del vehículo: se cierra la jornada directamente.
       if (!vehiculo) {
+        await registrarEventoUbicacion(jornada.id, 'fin_jornada');
+        await vaciarHistorial(jornada.id);
         const finalizada = await jornadasApi.finalizar(jornada.id, observaciones.trim() ? { observaciones: observaciones.trim() } : {});
         alFinalizar({ jornada: finalizada, vehiculo: null });
         return;
@@ -54,17 +59,16 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
       const imagenes = await subirImagenes(fotos);
       const control = {
         kilometraje: aNumero(kilometraje),
-        litros: aNumero(litros),
+        nivelCombustible,
         estado,
         imagenes,
         ...(observaciones.trim() ? { observaciones: observaciones.trim() } : {}),
       };
-      // Un solo pedido: el backend cierra la jornada y registra el control en el vehículo.
+      await registrarEventoUbicacion(jornada.id, 'fin_jornada');
+      await vaciarHistorial(jornada.id);
+      const vehiculoActualizado = await vehiculosApi.registrarControl(vehiculo.id, control);
       const finalizada = await jornadasApi.finalizar(jornada.id, control);
-      alFinalizar({
-        jornada: finalizada,
-        vehiculo: { ...vehiculo, kilometraje: { ...vehiculo.kilometraje, actual: control.kilometraje } },
-      });
+      alFinalizar({ jornada: finalizada, vehiculo: vehiculoActualizado });
     } catch (causa) {
       establecerError(causa.response?.data?.mensaje || 'No se pudo finalizar la jornada. Revisá la conexión e intentá de nuevo.');
       establecerGuardando(false);
@@ -86,8 +90,14 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
               <Text style={estilos.ayuda}>Registrá el tablero y el estado del vehículo antes de cerrar la jornada.</Text>
               <Campo etiqueta="Kilometraje" keyboardType="numeric" value={kilometraje} onChangeText={establecerKilometraje}
                 placeholder={String(kilometrajeMinimo)} ayuda={`Mínimo: ${formatearKm(kilometrajeMinimo)}`} editable={!guardando} />
-              <Campo etiqueta="Litros de nafta" keyboardType="decimal-pad" value={litros} onChangeText={establecerLitros}
-                placeholder="0" ayuda="Carga o lectura registrada" editable={!guardando} />
+              <View style={{ gap: 6 }}>
+                <Text style={estilos.etiqueta}>Nivel de combustible</Text>
+                <Opciones
+                  opciones={NIVELES_COMBUSTIBLE.map((nivel) => ({ valor: nivel, etiqueta: nivel }))}
+                  valor={nivelCombustible}
+                  alCambiar={establecerNivelCombustible}
+                />
+              </View>
               <View style={{ gap: 6 }}>
                 <Text style={estilos.etiqueta}>Estado del vehículo</Text>
                 <Opciones opciones={ESTADOS_VEHICULO} valor={estado} alCambiar={establecerEstado} />

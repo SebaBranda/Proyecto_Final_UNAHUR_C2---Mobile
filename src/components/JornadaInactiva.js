@@ -3,7 +3,6 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import TarjetaSesion from './TarjetaSesion.js';
-import InicioJornada from './InicioJornada.js';
 import { Aviso, Boton, Tarjeta } from './ui.js';
 import { useSesion } from '../context/SesionContext.js';
 import { reclamosApi } from '../services/api.js';
@@ -14,8 +13,7 @@ const plural = (cantidad, singular, varios) => `${cantidad} ${cantidad === 1 ? s
 // Sin jornada activa el técnico no ve sus reclamos: solo cuántos tiene pendientes (el backend no
 // le devuelve datos de clientes) y el botón para iniciar la jornada, que desbloquea todo.
 export default function JornadaInactiva() {
-  const { sesion, iniciarJornada } = useSesion();
-  const [inicioAbierto, establecerInicioAbierto] = useState(false);
+  const { iniciarJornada } = useSesion();
   const [resumen, establecerResumen] = useState(null);
   const [actualizando, establecerActualizando] = useState(false);
   const [iniciando, establecerIniciando] = useState(false);
@@ -37,13 +35,8 @@ export default function JornadaInactiva() {
     cargar();
   }, [cargar]));
 
-  // Con vehículo, primero se carga el control inicial del vehículo (ver InicioJornada).
   const iniciar = async () => {
     establecerError('');
-    if (sesion.vehiculo) {
-      establecerInicioAbierto(true);
-      return;
-    }
     establecerIniciando(true);
     try {
       // Al quedar activa, la pantalla se reemplaza por la lista de reclamos.
@@ -85,10 +78,6 @@ export default function JornadaInactiva() {
           <Boton icono="play" onPress={iniciar} cargando={iniciando}>Iniciar jornada</Boton>
         </View>
       </Tarjeta>
-      {inicioAbierto ? (
-        // Al quedar activa la jornada, esta pantalla se reemplaza sola por la lista de reclamos.
-        <InicioJornada abierto vehiculo={sesion.vehiculo} cerrar={() => establecerInicioAbierto(false)} />
-      ) : null}
     </ScrollView>
   );
 }

@@ -2,22 +2,30 @@ import { useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { reclamosApi } from '../services/api.js';
+import { clientesApi, reclamosApi } from '../services/api.js';
 import { subirImagenes } from '../utils/imagenes.js';
 import { formatearFecha } from '../utils/formato.js';
 import { colores } from '../theme/colores.js';
 import GaleriaImagenes from './GaleriaImagenes.js';
 import SelectorFotos from './SelectorFotos.js';
-import { Aviso, Boton, Campo, ChipEstado, Dato, Tarjeta } from './ui.js';
+import { Aviso, Boton, Campo, ChipEstado, Dato, Opciones, Tarjeta } from './ui.js';
+import { NIVELES_COMBUSTIBLE } from '../utils/combustible.js';
+import { registrarEventoUbicacion } from '../services/eventoUbicacion.js';
+import { useSesion } from '../context/SesionContext.js';
 
 const MAXIMO_IMAGENES_RECLAMO = 5;
+const IMAGENES_CONTROL_INICIAL = 4;
 
 // Detalle completo de un reclamo. Si está en progreso, permite finalizarlo con un comentario
 // y fotos del trabajo terminado (igual que en la web). alFinalizar se llama cuando sale bien.
 export function DetalleReclamo({
-  reclamo, tieneReclamoEnProgreso, alIniciar, alFinalizar,
+  reclamo, vehiculo, tieneReclamoEnProgreso, alIniciar, alFinalizar,
 }) {
   const cliente = reclamo.cliente || {};
+  const [conexion, establecerConexion] = useState({
+    pelo: cliente.pelo || '',
+    caja: cliente.caja || '',
+  });
   const enProgreso = reclamo.estado === 'En progreso';
   const imagenesActuales = reclamo.imagenes || [];
 
@@ -49,9 +57,21 @@ export function DetalleReclamo({
 
       <Tarjeta>
         <Dato etiqueta="Cliente">{cliente.nombre || 'Sin cliente'}</Dato>
-        {cliente.direccion ? (
-          <Enlace icono="location-outline" texto={cliente.direccion} accion="Ver en Maps"
-            url={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cliente.direccion)}`} />
+        {cliente.numeroCliente ? <Dato etiqueta="Número de cliente">{cliente.numeroCliente}</Dato> : null}
+        {conexion.pelo ? <Dato etiqueta="Pelo">{conexion.pelo}</Dato> : null}
+        {conexion.caja ? <Dato etiqueta="Caja">{conexion.caja}</Dato> : null}
+        {(cliente.ubicacion || cliente.direccion) ? (
+          <Enlace
+            icono="location-outline"
+            texto={cliente.direccion || cliente.ubicacion}
+            accion="Ver en Maps"
+            url={cliente.ubicacion?.startsWith('http')
+              ? cliente.ubicacion
+              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cliente.ubicacion || cliente.direccion)}`}
+          />
+        ) : null}
+        {['Asignado', 'En progreso'].includes(reclamo.estado) ? (
+          <ActualizarConexion cliente={cliente} alGuardar={establecerConexion} />
         ) : null}
         {cliente.telefono ? (
           <Enlace icono="call-outline" texto={cliente.telefono} accion="Llamar" url={`tel:${cliente.telefono.replace(/[^\d+]/g, '')}`} />
@@ -63,6 +83,7 @@ export function DetalleReclamo({
       ) : reclamo.estado === 'Asignado' ? (
         <IniciarReclamo
           reclamo={reclamo}
+          vehiculo={vehiculo}
           tieneReclamoEnProgreso={tieneReclamoEnProgreso}
           alIniciar={alIniciar}
         />
@@ -71,31 +92,137 @@ export function DetalleReclamo({
   );
 }
 
-// Comenzar es un solo toque: el control del vehículo se hace al iniciar y al finalizar la jornada.
-// El backend anota el vehículo del técnico (si tiene uno) y no deja tener dos reclamos en curso.
-function IniciarReclamo({ reclamo, tieneReclamoEnProgreso, alIniciar }) {
-  const [comenzando, establecerComenzando] = useState(false);
+function IniciarReclamo({ reclamo, vehiculo, tieneReclamoEnProgreso, alIniciar }) {
+  const { sesion } = useSesion();
+  const [abierto, establecerAbierto] = useState(false);
+  const [kilometraje, establecerKilometraje] = useState('');
+  const [nivelCombustible, establecerNivelCombustible] = useState('');
+  const [estadoVehiculo, establecerEstadoVehiculo] = useState('Activo');
+  const [fotos, establecerFotos] = useState([]);
+  const [guardando, establecerGuardando] = useState(false);
   const [error, establecerError] = useState('');
+  const kilometrajeMinimo = Number(vehiculo?.kilometraje?.actual) || 0;
+  const bloqueado = tieneReclamoEnProgreso || !vehiculo;
 
-  const comenzar = async () => {
+  const iniciar = async () => {
+    const km = Number(kilometraje);
+    if (!kilometraje || km < kilometrajeMinimo) {
+      establecerError(`El kilometraje debe ser igual o mayor a ${kilometrajeMinimo} km.`);
+      return;
+    }
+    if (!nivelCombustible) {
+      establecerError('Seleccioná el nivel de combustible.');
+      return;
+    }
+    if (fotos.length !== IMAGENES_CONTROL_INICIAL) {
+      establecerError(`Adjuntá exactamente ${IMAGENES_CONTROL_INICIAL} imágenes del vehículo.`);
+      return;
+    }
     establecerError('');
-    establecerComenzando(true);
+    establecerGuardando(true);
     try {
-      await reclamosApi.iniciar(reclamo.id);
+      const imagenes = await subirImagenes(fotos);
+      await reclamosApi.iniciar(reclamo.id, vehiculo.id, {
+        kilometraje: km,
+        nivelCombustible,
+        estado: estadoVehiculo,
+        imagenes,
+      });
+      await registrarEventoUbicacion(sesion.jornadaActiva.id, 'cambio_estado');
       alIniciar?.();
     } catch (causa) {
-      establecerError(causa.response?.data?.mensaje || 'No se pudo comenzar el reclamo. Revisá la conexión e intentá nuevamente.');
-      establecerComenzando(false);
+      establecerError(causa.response?.data?.mensaje || 'No se pudo iniciar el reclamo. Revisá la conexión e intentá nuevamente.');
+      establecerGuardando(false);
+    }
+  };
+
+  if (!abierto) {
+    return (
+      <Tarjeta>
+        <Boton
+          icono="play"
+          onPress={() => establecerAbierto(true)}
+          deshabilitado={bloqueado}
+        >
+          {tieneReclamoEnProgreso ? 'Finalizá el reclamo en curso para comenzar' : 'Comenzar asignación'}
+        </Boton>
+        {!vehiculo ? <Aviso>No tenés un vehículo asignado para iniciar el reclamo.</Aviso> : null}
+      </Tarjeta>
+    );
+  }
+
+  return (
+    <Tarjeta>
+      <Text style={estilos.tituloFormulario}>Control inicial del servicio</Text>
+      <Text style={estilos.secundario}>Registrá el tablero completo antes de continuar.</Text>
+      <View style={estilos.fila}>
+        <View style={{ flex: 1 }}>
+          <Campo etiqueta="Kilometraje" keyboardType="numeric" value={kilometraje} onChangeText={establecerKilometraje}
+            placeholder={`Mínimo: ${kilometrajeMinimo} km`} editable={!guardando} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={estilos.etiqueta}>Nivel de combustible</Text>
+            <Opciones
+              opciones={NIVELES_COMBUSTIBLE.map((nivel) => ({ valor: nivel, etiqueta: nivel }))}
+              valor={nivelCombustible}
+              alCambiar={establecerNivelCombustible}
+            />
+          </View>
+        </View>
+      </View>
+      <Text style={estilos.etiqueta}>Estado del vehículo</Text>
+      <Opciones
+        opciones={[
+          { valor: 'Activo', etiqueta: 'Activo' },
+          { valor: 'Fuera de servicio', etiqueta: 'Fuera de servicio' },
+        ]}
+        valor={estadoVehiculo}
+        alCambiar={establecerEstadoVehiculo}
+      />
+      <Text style={estilos.etiqueta}>Imágenes del vehículo y del tablero</Text>
+      <SelectorFotos fotos={fotos} alCambiar={establecerFotos} maximo={IMAGENES_CONTROL_INICIAL} deshabilitado={guardando} />
+      <Aviso>{error}</Aviso>
+      <Boton icono="play" onPress={iniciar} cargando={guardando}>Guardar control y comenzar</Boton>
+      <Boton variante="secundario" onPress={() => establecerAbierto(false)} deshabilitado={guardando}>Cancelar</Boton>
+    </Tarjeta>
+  );
+}
+
+function ActualizarConexion({ cliente, alGuardar }) {
+  const [pelo, establecerPelo] = useState(cliente.pelo || '');
+  const [caja, establecerCaja] = useState(cliente.caja || '');
+  const [guardando, establecerGuardando] = useState(false);
+  const [mensaje, establecerMensaje] = useState('');
+  const [error, establecerError] = useState('');
+
+  const guardar = async () => {
+    establecerGuardando(true);
+    establecerMensaje('');
+    establecerError('');
+    try {
+      const respuesta = await clientesApi.actualizarConexion(cliente.id, { pelo, caja });
+      alGuardar?.(respuesta.cliente || { pelo, caja });
+      establecerMensaje('Datos de conexión guardados.');
+    } catch (causa) {
+      establecerError(causa.response?.data?.mensaje || 'No se pudieron guardar los datos de conexión.');
+    } finally {
+      establecerGuardando(false);
     }
   };
 
   return (
-    <Tarjeta>
-      <Boton icono="play" onPress={comenzar} cargando={comenzando} deshabilitado={tieneReclamoEnProgreso}>
-        {tieneReclamoEnProgreso ? 'Finalizá el reclamo en curso para comenzar' : 'Comenzar asignación'}
-      </Boton>
-      <Aviso>{error}</Aviso>
-    </Tarjeta>
+    <View style={estilos.conexion}>
+      <Text style={estilos.etiqueta}>Datos de conexión</Text>
+      <Text style={estilos.secundario}>Podés completar o corregir pelo y caja durante la visita.</Text>
+      <Campo etiqueta="Pelo" value={pelo} onChangeText={establecerPelo} editable={!guardando}
+        placeholder="Ej.: P-12" />
+      <Campo etiqueta="Caja" value={caja} onChangeText={establecerCaja} editable={!guardando}
+        placeholder="Ej.: Caja 4" />
+      {error ? <Aviso>{error}</Aviso> : null}
+      {mensaje ? <Aviso tipo="exito">{mensaje}</Aviso> : null}
+      <Boton icono="save-outline" onPress={guardar} cargando={guardando}>Guardar conexión</Boton>
+    </View>
   );
 }
 
@@ -160,7 +287,7 @@ function FinalizarReclamo({ reclamo, lugaresLibres, alFinalizar }) {
 }
 
 // El detalle en una ventana completa (desde la lista de Mis asignaciones).
-export function ModalReclamo({ reclamo, tieneReclamoEnProgreso, cerrar, alIniciar, alFinalizar }) {
+export function ModalReclamo({ reclamo, vehiculo, tieneReclamoEnProgreso, cerrar, alIniciar, alFinalizar }) {
   return (
     <Modal visible={Boolean(reclamo)} animationType="slide" onRequestClose={cerrar}>
       <SafeAreaView style={estilos.modal} edges={['top', 'bottom']}>
@@ -174,6 +301,7 @@ export function ModalReclamo({ reclamo, tieneReclamoEnProgreso, cerrar, alInicia
           {reclamo ? (
             <DetalleReclamo
               reclamo={reclamo}
+              vehiculo={vehiculo}
               tieneReclamoEnProgreso={tieneReclamoEnProgreso}
               alIniciar={alIniciar}
               alFinalizar={alFinalizar}
@@ -195,6 +323,7 @@ const estilos = StyleSheet.create({
   textoEnlace: { flex: 1, color: colores.texto, fontSize: 15 },
   accion: { color: colores.primario, fontWeight: '700' },
   tituloFormulario: { fontSize: 16, fontWeight: '800', color: colores.texto },
+  conexion: { gap: 8, paddingTop: 4, borderTopWidth: 1, borderTopColor: colores.borde },
   modal: { flex: 1, backgroundColor: colores.fondo },
   barra: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colores.borde, backgroundColor: colores.superficie },
   tituloBarra: { fontSize: 17, fontWeight: '800', color: colores.texto },

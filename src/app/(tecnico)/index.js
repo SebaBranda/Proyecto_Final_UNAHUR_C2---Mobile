@@ -23,6 +23,7 @@ export default function MisAsignaciones() {
 }
 
 function ListaAsignaciones() {
+  const { sesion } = useSesion();
   const [estado, establecerEstado] = useState('Todos');
   const [reclamos, establecerReclamos] = useState([]);
   const [paginacion, establecerPaginacion] = useState(null);
@@ -118,6 +119,7 @@ function ListaAsignaciones() {
       <ModalReclamo
         reclamo={elegido}
         cerrar={() => establecerElegido(null)}
+        vehiculo={sesion.vehiculo}
         tieneReclamoEnProgreso={(totales['En progreso'] || 0) > 0}
         alIniciar={() => { establecerElegido(null); cargar(1); }}
         alFinalizar={() => { establecerElegido(null); cargar(1); }}
@@ -136,10 +138,12 @@ function TarjetaReclamo({ reclamo, alTocar }) {
         </View>
         <ChipEstado estado={reclamo.estado} />
       </View>
-      {reclamo.cliente?.direccion ? (
+      {(reclamo.cliente?.ubicacion || reclamo.cliente?.direccion) ? (
         <View style={estilos.fila}>
           <Ionicons name="location-outline" size={15} color={colores.textoSecundario} />
-          <Text style={estilos.secundario} numberOfLines={1}>{reclamo.cliente.direccion}</Text>
+          <Text style={estilos.secundario} numberOfLines={1}>
+            {reclamo.cliente.direccion || reclamo.cliente.ubicacion}
+          </Text>
         </View>
       ) : null}
       <View style={estilos.fila}>

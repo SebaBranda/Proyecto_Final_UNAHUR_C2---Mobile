@@ -15,11 +15,6 @@ export function formatearDuracion(inicio, fin = Date.now()) {
   return horas ? `${horas} h ${minutos % 60} min` : `${minutos} min`;
 }
 
-// Número escrito por el técnico: acepta coma o punto decimal ("1234,5"). Si no es un número, NaN.
-export const aNumero = (texto) => (String(texto ?? '').trim() === ''
-  ? NaN
-  : Number(String(texto).trim().replace(',', '.')));
-
 export const formatearKm = (valor) => (Number.isFinite(Number(valor)) && valor !== null && valor !== ''
   ? `${Number(valor).toLocaleString('es-AR')} km`
   : 'Sin dato');

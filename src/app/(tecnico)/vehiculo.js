@@ -94,7 +94,9 @@ export default function Vehiculo() {
             </Text>
             <View style={estilos.fila}>
               <View style={{ flex: 1 }}><Dato etiqueta="Kilometraje">{formatearKm(control.kilometraje)}</Dato></View>
-              <View style={{ flex: 1 }}><Dato etiqueta="Litros">{control.litros ?? 'Sin dato'}</Dato></View>
+              <View style={{ flex: 1 }}>
+                <Dato etiqueta="Combustible">{control.nivelCombustible ?? control.litros ?? 'Sin dato'}</Dato>
+              </View>
             </View>
             {control.estado ? <Dato etiqueta="Estado informado">{control.estado}</Dato> : null}
             {control.observaciones ? <Dato etiqueta="Observaciones">{control.observaciones}</Dato> : null}

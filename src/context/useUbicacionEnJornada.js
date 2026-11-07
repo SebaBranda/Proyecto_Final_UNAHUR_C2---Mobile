@@ -1,42 +1,46 @@
 import { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
-import { ubicacionesApi } from '../services/api.js';
+import { agregarPunto, sincronizar } from '../services/historialUbicacion.js';
 
 const CADA_MS = 5 * 60 * 1000;
 
-// Mientras la jornada está activa y la app abierta, manda la ubicación del técnico cada 5 minutos
-// (igual que la web), para que aparezca en el mapa del admin y del coordinador.
-// Devuelve un mensaje de error para mostrar, o '' si todo va bien.
-export function useUbicacionEnJornada(tecnicoId, jornadaActiva) {
+export function useUbicacionEnJornada(tecnicoId, jornada) {
   const [error, establecerError] = useState('');
 
   useEffect(() => {
-    if (!tecnicoId || !jornadaActiva) return undefined;
+    if (!tecnicoId || !jornada?.id) return undefined;
     let cancelado = false;
 
-    const registrar = async () => {
+    const registrar = async (evento = 'intervalo') => {
       try {
         const permiso = await Location.requestForegroundPermissionsAsync();
         if (!permiso.granted) {
-          if (!cancelado) establecerError('Habilitá el permiso de ubicación para aparecer en el mapa.');
+          if (!cancelado) establecerError('Habilitá el permiso de ubicación para registrar el recorrido.');
           return;
         }
         const posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        await ubicacionesApi.actualizar(tecnicoId, posicion.coords.latitude, posicion.coords.longitude);
+        const punto = {
+          latitud: posicion.coords.latitude,
+          longitud: posicion.coords.longitude,
+          registradoEn: new Date(posicion.timestamp || Date.now()).toISOString(),
+          evento,
+        };
+        await agregarPunto(jornada.id, punto);
         if (!cancelado) establecerError('');
       } catch {
-        if (!cancelado) establecerError('No se pudo enviar tu ubicación. Revisá el GPS y la conexión.');
+        if (!cancelado) establecerError('No se pudo guardar tu ubicación. Revisá el GPS.');
       }
     };
 
-    registrar();
+    registrar('inicio_jornada');
     const intervalo = setInterval(registrar, CADA_MS);
+    const red = sincronizar(jornada.id).catch(() => false);
+    void red;
     return () => {
       cancelado = true;
       clearInterval(intervalo);
     };
-  }, [tecnicoId, jornadaActiva]);
+  }, [tecnicoId, jornada?.id]);
 
-  // Sin jornada activa no hay nada que avisar.
-  return tecnicoId && jornadaActiva ? error : '';
+  return tecnicoId && jornada?.id ? error : '';
 }

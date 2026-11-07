@@ -24,25 +24,39 @@ export const reclamosApi = {
   // Cuántos reclamos tiene pendientes: { jornadaActiva, asignados, enProgreso, urgentes }.
   // Responde aunque no tenga la jornada activa (solo cantidades, sin datos de clientes).
   resumen: async () => (await apiClient.get('/reclamos/resumen')).data,
-  // Comienza una asignación con un toque: el control del vehículo se hace al iniciar y al finalizar
-  // la jornada. El backend anota el vehículo del técnico (si tiene uno).
-  iniciar: async (reclamoId) => (
-    await apiClient.patch(`/reclamos/${reclamoId}/estado`, { estado: 'En progreso' })
+  // Comienza una asignación. Con vehículo, controlInicio debe incluir kilometraje, nivelCombustible, estado e imágenes.
+  iniciar: async (reclamoId, vehiculoId, controlInicio) => (
+    await apiClient.patch(`/reclamos/${reclamoId}/estado`, {
+      estado: 'En progreso',
+      vehiculoId,
+      inicioServicio: controlInicio,
+    })
   ).data,
   // Finaliza el reclamo con un comentario y los ids de las imágenes del trabajo (ya subidas).
-  // El backend pone la fecha y lo asocia a la jornada activa (así cuenta en el desempeño).
+  // El backend lo asocia a la jornada activa, así cuenta en esa jornada y en el desempeño.
   finalizar: async (reclamoId, { comentarioFinalizacion, imagenes }) => (
     await apiClient.patch(`/reclamos/${reclamoId}/estado`, {
       estado: 'Finalizado',
       comentarioFinalizacion,
       imagenes,
+      finalizadoEn: new Date().toISOString(),
     })
+  ).data,
+};
+
+export const clientesApi = {
+  actualizarConexion: async (clienteId, datos) => (
+    await apiClient.patch(`/clientes/${clienteId}/conexion`, datos)
   ).data,
 };
 
 export const vehiculosApi = {
   // Devuelve solo el vehículo asignado al técnico (o null si no tiene).
   asignado: async () => (await pedirPagina('/vehiculos', { limite: 1 })).datos?.[0] ?? null,
+  // Control del vehículo (kilometraje, nivelCombustible, estado, imágenes): actualiza el kilometraje actual.
+  registrarControl: async (vehiculoId, control) => (
+    await apiClient.patch(`/vehiculos/${vehiculoId}/control`, control)
+  ).data,
 };
 
 export const jornadasApi = {
@@ -53,13 +67,11 @@ export const jornadasApi = {
     params: Object.fromEntries([['desde', desde], ['hasta', hasta]].filter(([, valor]) => valor)),
   })).data,
   // El backend pone la hora de inicio; si ya hay una jornada activa responde 409.
-  // controlInicial: { kilometraje, litros, estado, imagenes } (exactamente 4 imágenes), obligatorio
-  // si el técnico tiene vehículo; el backend también lo registra en el vehículo. Sin vehículo, no se manda.
-  iniciar: async (tecnicoId, controlInicial) => (
-    await apiClient.post('/jornadas', { tecnicoId, ...(controlInicial ? { controlInicial } : {}) })
+  // Sin vehículo asignado, kilometrajeInicial va undefined (no se manda).
+  iniciar: async (tecnicoId, kilometrajeInicial) => (
+    await apiClient.post('/jornadas', { tecnicoId, kilometrajeInicial })
   ).data,
-  // controlFinal: { kilometraje, litros, estado, observaciones, imagenes } (exactamente 4 imágenes).
-  // El backend también lo registra en el vehículo, en el mismo pedido.
+  // controlFinal: { kilometraje, nivelCombustible, estado, observaciones, imagenes } (exactamente 4 imágenes).
   // Sin vehículo asignado alcanza con { observaciones } (opcional): no hay control del vehículo.
   finalizar: async (jornadaId, controlFinal) => (
     await apiClient.patch(`/jornadas/${jornadaId}/finalizar`, controlFinal)
@@ -69,6 +81,9 @@ export const jornadasApi = {
 export const ubicacionesApi = {
   actualizar: async (tecnicoId, latitud, longitud) => (
     await apiClient.patch(`/ubicaciones-tecnicos/${tecnicoId}`, { latitud, longitud })
+  ).data,
+  registrarRecorrido: async (jornadaId, puntos) => (
+    await apiClient.post('/ubicaciones-tecnicos/recorrido', { jornadaId, puntos })
   ).data,
 };
 

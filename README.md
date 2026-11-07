@@ -67,11 +67,13 @@ src/
   context/
     SesionContext.js      sesión del técnico: usuario, jornada activa y vehículo
     useUbicacionEnJornada.js con la jornada activa, manda la ubicación cada 5 minutos
+    historialUbicacion.js cola el recorrido en almacenamiento local y sincroniza solo por Wi-Fi
   services/
     apiClient.js          axios con la URL de la API y el token
     api.js                llamadas a la API (mismos endpoints que la web)
   utils/
     imagenes.js           elegir fotos y comprimirlas (máx. 600 KB) antes de subirlas
+    compresionImagenes.ts comprimir una URI a JPEG (máx. 1200 px, calidad 80 %) para FormData
     formato.js            fechas, horas, duraciones y kilómetros
   theme/colores.js        colores de marca (los mismos de la web)
 ```
@@ -84,6 +86,12 @@ Al iniciar o cerrar sesión, Expo Router cambia de pantalla solo (`Stack.Protect
 **Sesión:** el token vive solo en memoria; al cerrar la app hay que volver a ingresar. Hay una sola sesión por usuario: si el técnico ingresa desde la web u otro celular, esta sesión se cierra y la app vuelve al login con el aviso.
 Para mantenerla abierta se puede guardar el token con `expo-secure-store`.
 
+**Recorrido:** durante la jornada se guardan las posiciones en `AsyncStorage`, sin consumir
+datos móviles para sincronizarlas. La app envía la cola completa al backend cuando detecta
+Wi-Fi, también registra puntos al iniciar/finalizar la jornada y al cambiar el estado de un
+servicio. La cola se conserva si no hay Wi-Fi y se limpia únicamente después de una
+sincronización exitosa.
+
 ## Comandos
 
 | Comando | Qué hace |
@@ -91,8 +99,18 @@ Para mantenerla abierta se puede guardar el token con `expo-secure-store`.
 | `npx expo start` | Inicia el servidor de desarrollo (QR para Expo Go) |
 | `npm run web` | Abre la app en el navegador |
 | `npm run lint` | Revisa el código con ESLint |
+| `npm run typecheck` | Valida los tipos TypeScript |
 | `npx expo install <paquete>` | Agrega una dependencia con la versión compatible con el SDK (usar en lugar de `npm install <paquete>`) |
 | `npx expo-doctor` | Diagnostica problemas de dependencias y configuración |
+
+### Compresión para `FormData`
+
+`src/utils/compresionImagenes.ts` expone `comprimirImagen(uri)`. La función convierte
+formatos como HEIC y PNG a JPEG, limita la dimensión máxima a 1200 px y devuelve
+`{ name, type, uri }`, listo para adjuntarlo como archivo en un `FormData` de React Native.
+
+El backend actual recibe imágenes como data URLs mediante `/imagenes`; este helper
+queda preparado para endpoints `multipart/form-data` sin modificar ese contrato existente.
 
 ## Próximos pasos
 

@@ -5,9 +5,12 @@ import axios from 'axios';
 export const URL_API = process.env.EXPO_PUBLIC_API_URL;
 
 // El token de la sesión vive solo en memoria: al cerrar la app hay que volver a ingresar.
+// venceEn: momento (en milisegundos) en que vence, según los segundos que informa el backend.
 let tokenActual = null;
-export const establecerToken = (token) => {
+let venceEn = 0;
+export const establecerToken = (token, segundosDeVida = 3600) => {
   tokenActual = token;
+  venceEn = token ? Date.now() + segundosDeVida * 1000 : 0;
 };
 
 export const apiClient = axios.create({
@@ -16,7 +19,31 @@ export const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-apiClient.interceptors.request.use((config) => {
+// El token dura 1 hora: si le quedan menos de 15 minutos, se renueva antes del próximo pedido
+// (igual que en la web). Así la sesión no se corta mientras el técnico trabaja.
+const RENOVAR_ANTES_DE_MS = 15 * 60 * 1000;
+let renovacionEnCurso = null;
+function renovarSiHaceFalta() {
+  if (venceEn - Date.now() > RENOVAR_ANTES_DE_MS) return Promise.resolve();
+  if (!renovacionEnCurso) {
+    const tokenAnterior = tokenActual;
+    // axios directo (no apiClient) para no volver a pasar por este interceptor.
+    renovacionEnCurso = axios.get(`${URL_API}/auth/sesion`, {
+      headers: { Authorization: `Bearer ${tokenAnterior}` },
+      timeout: 10000,
+    })
+      .then(({ data }) => {
+        // Si mientras tanto se salió de la sesión, no se vuelve a guardar un token.
+        if (tokenActual === tokenAnterior) establecerToken(data.token, data.expiresIn);
+      })
+      .catch(() => undefined)
+      .finally(() => { renovacionEnCurso = null; });
+  }
+  return renovacionEnCurso;
+}
+
+apiClient.interceptors.request.use(async (config) => {
+  if (tokenActual && !config.url?.startsWith('/auth/')) await renovarSiHaceFalta();
   if (tokenActual) config.headers.Authorization = `Bearer ${tokenActual}`;
   return config;
 });

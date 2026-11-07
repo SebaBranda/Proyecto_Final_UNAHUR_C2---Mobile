@@ -14,6 +14,7 @@ function mensajeDeError(error) {
   if (error.response?.status === 401) return 'Usuario o contraseña incorrectos.';
   if (error.response?.status === 400) return 'Completá el usuario y la contraseña.';
   if (error.response?.status === 403) return error.response.data?.mensaje || 'No tenés permiso para usar la app.';
+  if (error.response?.status === 429) return error.response.data?.mensaje || 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.';
   if (!error.response) return `No se pudo conectar con el servidor (${URL_API}). Revisá que el celular esté en la misma red que la PC.`;
   return 'No se pudo iniciar sesión. Intentá nuevamente.';
 }
@@ -53,7 +54,7 @@ export function SesionProvider({ children }) {
         error.esRolInvalido = true;
         throw error;
       }
-      establecerToken(respuesta.token);
+      establecerToken(respuesta.token, respuesta.expiresIn);
       establecerAviso('');
       establecerSesion({
         usuario: respuesta.usuario,
@@ -72,15 +73,18 @@ export function SesionProvider({ children }) {
     establecerSesion((actual) => (actual ? { ...actual, ...cambios } : actual));
   }, []);
 
-  // Inicia la jornada (la hora la pone el backend). Con vehículo, su kilometraje actual es el
-  // kilometraje inicial. Al quedar activa, se desbloquean los reclamos en todas las pantallas.
-  const iniciarJornada = useCallback(async () => {
+  // Inicia la jornada (la hora la pone el backend). Con vehículo, recibe el control inicial
+  // ({ kilometraje, nivelCombustible, estado, imagenes }), que también queda registrado en el vehículo.
+  // Al quedar activa, se desbloquean los reclamos en todas las pantallas.
+  const iniciarJornada = useCallback(async (controlInicial) => {
     const { usuario, vehiculo } = sesion;
-    const jornada = await jornadasApi.iniciar(
-      usuario.id,
-      vehiculo ? Number(vehiculo.kilometraje?.actual) || 0 : undefined,
-    );
-    actualizarSesion({ jornadaActiva: jornada });
+    const jornada = await jornadasApi.iniciar(usuario.id, controlInicial);
+    actualizarSesion({
+      jornadaActiva: jornada,
+      ...(vehiculo && controlInicial ? {
+        vehiculo: { ...vehiculo, kilometraje: { ...vehiculo.kilometraje, actual: controlInicial.kilometraje } },
+      } : {}),
+    });
     return jornada;
   }, [sesion, actualizarSesion]);
 

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
+// NetInfoStateType se importa aparte: no viene dentro de NetInfo (NetInfo.NetInfoStateType es undefined).
+import NetInfo, { NetInfoStateType } from '@react-native-community/netinfo';
 import { ubicacionesApi } from './api.js';
 
 const CLAVE = '@galacticapp/historial-ubicacion';
@@ -33,7 +34,7 @@ export async function sincronizar(jornadaId) {
 
 async function sincronizarInterno(jornadaId) {
   const red = await NetInfo.fetch();
-  if (!red.isConnected || red.type !== NetInfo.NetInfoStateType.wifi) return false;
+  if (!red.isConnected || red.type !== NetInfoStateType.wifi) return false;
   const historial = await leer();
   if (historial.jornadaId !== jornadaId || !historial.puntos.length) return true;
 
@@ -49,7 +50,7 @@ export async function vaciarHistorial(jornadaId) {
 }
 
 NetInfo.addEventListener((red) => {
-  if (red.isConnected && red.type === NetInfo.NetInfoStateType.wifi) {
+  if (red.isConnected && red.type === NetInfoStateType.wifi) {
     leer().then((historial) => {
       if (historial.jornadaId && historial.puntos.length) sincronizar(historial.jornadaId);
     }).catch(() => undefined);

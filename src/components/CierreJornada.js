@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { jornadasApi, vehiculosApi } from '../services/api.js';
+import { jornadasApi } from '../services/api.js';
 import { subirImagenes } from '../utils/imagenes.js';
-import { formatearKm } from '../utils/formato.js';
+import { aNumero, formatearKm } from '../utils/formato.js';
 import { colores } from '../theme/colores.js';
 import SelectorFotos from './SelectorFotos.js';
 import { Aviso, Boton, Campo, Opciones } from './ui.js';
@@ -18,10 +18,9 @@ const ESTADOS_VEHICULO = [
   { valor: 'Activo', etiqueta: 'Activo' },
   { valor: 'Fuera de servicio', etiqueta: 'Fuera de servicio' },
 ];
-const aNumero = (texto) => Number(String(texto).replace(',', '.'));
 
-// Control final de la jornada (igual que en la web): kilometraje, litros, estado del vehículo,
-// observaciones y 4 fotos. Registra el control del vehículo y después finaliza la jornada.
+// Control final de la jornada (igual que en la web): kilometraje, nivel de combustible, estado del vehículo,
+// observaciones y 4 fotos. El backend finaliza la jornada y registra el control en el vehículo.
 // alFinalizar({ jornada, vehiculo }) se llama cuando sale bien.
 export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFinalizar }) {
   const kilometrajeMinimo = Number(vehiculo?.kilometraje?.actual) || 0;
@@ -51,7 +50,7 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
       // Sin vehículo asignado no hay control del vehículo: se cierra la jornada directamente.
       if (!vehiculo) {
         await registrarEventoUbicacion(jornada.id, 'fin_jornada');
-        await vaciarHistorial(jornada.id);
+        await vaciarHistorial(jornada.id).catch(() => false);
         const finalizada = await jornadasApi.finalizar(jornada.id, observaciones.trim() ? { observaciones: observaciones.trim() } : {});
         alFinalizar({ jornada: finalizada, vehiculo: null });
         return;
@@ -64,11 +63,17 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
         imagenes,
         ...(observaciones.trim() ? { observaciones: observaciones.trim() } : {}),
       };
+      // Último punto del recorrido y sincronización del historial antes de cerrar. Si no se puede
+      // subir ahora (sin WiFi o sin conexión), los puntos quedan guardados y se suben después: no
+      // impide cerrar la jornada.
       await registrarEventoUbicacion(jornada.id, 'fin_jornada');
-      await vaciarHistorial(jornada.id);
-      const vehiculoActualizado = await vehiculosApi.registrarControl(vehiculo.id, control);
+      await vaciarHistorial(jornada.id).catch(() => false);
+      // Un solo pedido: el backend cierra la jornada y registra el control en el vehículo.
       const finalizada = await jornadasApi.finalizar(jornada.id, control);
-      alFinalizar({ jornada: finalizada, vehiculo: vehiculoActualizado });
+      alFinalizar({
+        jornada: finalizada,
+        vehiculo: { ...vehiculo, kilometraje: { ...vehiculo.kilometraje, actual: control.kilometraje } },
+      });
     } catch (causa) {
       establecerError(causa.response?.data?.mensaje || 'No se pudo finalizar la jornada. Revisá la conexión e intentá de nuevo.');
       establecerGuardando(false);

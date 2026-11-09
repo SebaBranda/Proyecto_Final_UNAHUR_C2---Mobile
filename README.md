@@ -1,120 +1,84 @@
-# GalacticApp Mobile
+# GalacticApp · Mobile
 
-App móvil de GalacticApp para **técnicos**, hecha con [Expo](https://docs.expo.dev/) (SDK 58) y React Native en JavaScript.
-Usa la misma API que la web ([backend](https://github.com/SebaBranda/Proyecto_Final_UNAHUR_C2-Backend)).
+App móvil de GalacticApp para **técnicos**: asignaciones, servicio en curso, jornada con control del vehículo y envío de la ubicación. Usa la misma API que la web ([backend](https://github.com/SebaBranda/Proyecto_Final_UNAHUR_C2-Backend)).
 
-Estado actual: **esqueleto**. El login funciona contra la API real y las pantallas del técnico están creadas, pero todavía sin contenido.
+## Stack
 
-## Requisitos
-
-- Node.js 20 o superior.
-- En el celular, la app **Expo Go** (Play Store / App Store).
-- El backend de GalacticApp levantado (stack Docker, ver más abajo).
-- El celular y la PC conectados **a la misma red Wi-Fi**.
-
-## Cómo levantarla
-
-1. Instalar dependencias:
-   ```sh
-   npm install
-   ```
-2. Configurar la URL de la API: copiar `.env.example` como `.env.local` y poner la IP de tu PC.
-   ```sh
-   EXPO_PUBLIC_API_URL=http://192.168.0.10:8080/api
-   ```
-   En Windows, la IP sale del comando `ipconfig` ("Dirección IPv4" del adaptador Wi-Fi).
-   `.env.local` no se sube al repositorio, porque la IP es distinta en cada máquina.
-3. Levantar el backend (desde la carpeta que tiene el `docker-compose.yml` de GalacticApp):
-   ```sh
-   docker compose up -d
-   ```
-4. Iniciar la app:
-   ```sh
-   npx expo start
-   ```
-5. Escanear el código QR con Expo Go (Android) o con la cámara (iPhone).
-6. Ingresar con un técnico, por ejemplo `tecnico` / `tecnico` (datos demo).
-
-Para probarla en el navegador de la PC: `npm run web`. En ese caso el backend tiene que permitir el origen
-de la app en la variable `CORS_ORIGIN` (por ejemplo `http://localhost:8081`). En el celular no hace falta.
-
-### Si no conecta
-
-- Revisá que `EXPO_PUBLIC_API_URL` tenga la IP de la PC (no `localhost`) y termine en `/api`.
-- Desde el navegador del celular, abrí `http://<IP-de-la-PC>:8080/api/ping`: si no responde, el problema es la red.
-- El Firewall de Windows puede bloquear el puerto 8080: permitilo para redes privadas.
-- Después de cambiar `.env.local`, recargá la app (sacudí el celular → Reload).
+| | |
+|---|---|
+| Plataforma | Expo SDK 58, React Native 0.88 y React 19 |
+| Navegación | Expo Router (rutas definidas por archivos) |
+| HTTP | Axios |
+| Lenguaje | JavaScript |
 
 ## Estructura
 
 ```
 src/
-  app/                    pantallas (Expo Router: cada archivo es una ruta)
-    _layout.js            raíz: sesión y rutas protegidas
-    login.js              login (solo técnicos)
-    (tecnico)/            pantallas del técnico, en pestañas
-      _layout.js          pestañas y botón "Salir"
-      index.js            Mis asignaciones: filtros por estado, lista paginada y detalle → GET /reclamos
-      servicio-en-curso.js En curso: detalle del reclamo en progreso y finalizarlo → PATCH /reclamos/:id/estado
-      vehiculo.js         Vehículo: datos, seguro y último control → GET /vehiculos
-      resumen.js          Jornada: iniciar/finalizar, desempeño e historial → /jornadas
-  components/
-    ui.js                 piezas visuales comunes (tarjetas, botones, campos, estados)
-    DetalleReclamo.js     detalle de un reclamo y formulario para finalizarlo
-    CierreJornada.js      control final de la jornada (kilometraje, litros, estado y 4 fotos)
-    SelectorFotos.js      fotos con cámara o galería
-    GaleriaImagenes.js    imágenes guardadas de un registro
+  app/                       pantallas (Expo Router: cada archivo es una ruta)
+    _layout.js               raíz: proveedor de sesión y rutas protegidas (Stack.Protected)
+    login.js                 login (solo técnicos)
+    (tecnico)/               pantallas del técnico, en pestañas
+      index.js               Mis asignaciones: filtros por estado, lista paginada y detalle
+      servicio-en-curso.js   reclamo en progreso y su finalización
+      vehiculo.js            datos del vehículo, seguro y último control
+      resumen.js             jornada: iniciar o finalizar, desempeño e historial
+  components/                piezas de UI y formularios (inicio y cierre de jornada, fotos, detalle)
   context/
-    SesionContext.js      sesión del técnico: usuario, jornada activa y vehículo
-    useUbicacionEnJornada.js con la jornada activa, manda la ubicación cada 5 minutos
-    historialUbicacion.js cola el recorrido en almacenamiento local y sincroniza solo por Wi-Fi
+    SesionContext.js         usuario, jornada activa y vehículo
+    useUbicacionEnJornada.js registra la ubicación cada 5 minutos mientras la jornada está activa
   services/
-    apiClient.js          axios con la URL de la API y el token
-    api.js                llamadas a la API (mismos endpoints que la web)
-  utils/
-    imagenes.js           elegir fotos y comprimirlas (máx. 600 KB) antes de subirlas
-    compresionImagenes.ts comprimir una URI a JPEG (máx. 1200 px, calidad 80 %) para FormData
-    formato.js            fechas, horas, duraciones y kilómetros
-  theme/colores.js        colores de marca (los mismos de la web)
+    apiClient.js             Axios con la URL de la API y el token
+    api.js                   llamadas a la API (los mismos endpoints que la web)
+    historialUbicacion.js    cola local del recorrido y su sincronización
+  utils/                     compresión de imágenes, formatos de fecha y kilómetros, combustible
+  theme/colores.js           colores de marca (los mismos de la web)
 ```
 
-**Permisos del celular:** cámara y fotos (para adjuntar imágenes al finalizar un reclamo o la jornada) y ubicación (solo con la jornada activa y la app abierta, para el mapa del admin). Se piden la primera vez que se usan.
+## Aspectos técnicos
 
-**Rutas protegidas:** sin sesión solo se puede ver el login; con sesión, las pantallas del técnico.
-Al iniciar o cerrar sesión, Expo Router cambia de pantalla solo (`Stack.Protected` en `src/app/_layout.js`).
+- **Rutas protegidas:** sin sesión solo se ve el login. Al iniciar o cerrar sesión, Expo Router cambia de pantalla solo (`Stack.Protected`).
+- **Sesión:**
+  - El token se guarda solo en memoria: al cerrar la app hay que volver a ingresar.
+  - Hay una única sesión por usuario: si el técnico ingresa desde la web u otro celular, esta sesión se cierra y la app vuelve al login con un aviso.
+- **Recorrido:**
+  - Mientras la jornada está activa, cada posición se guarda en una cola en `AsyncStorage`.
+  - Se registran puntos cada 5 minutos, al iniciar o finalizar la jornada y al cambiar el estado de un servicio.
+  - La cola se envía completa cuando hay Wi-Fi (detectado con NetInfo), para no gastar datos móviles. Solo se borra después de que el envío salió bien.
+- **Fotos:** se toman con la cámara o se eligen de la galería. Antes de subirlas se comprimen a JPEG, de hasta 600 KB.
+- **Permisos:** cámara y fotos (para las evidencias) y ubicación mientras la app está en uso (solo con la jornada activa). Los textos de cada permiso están configurados en [app.json](app.json).
 
-**Sesión:** el token vive solo en memoria; al cerrar la app hay que volver a ingresar. Hay una sola sesión por usuario: si el técnico ingresa desde la web u otro celular, esta sesión se cierra y la app vuelve al login con el aviso.
-Para mantenerla abierta se puede guardar el token con `expo-secure-store`.
+## Configuración
 
-**Recorrido:** durante la jornada se guardan las posiciones en `AsyncStorage`, sin consumir
-datos móviles para sincronizarlas. La app envía la cola completa al backend cuando detecta
-Wi-Fi, también registra puntos al iniciar/finalizar la jornada y al cambiar el estado de un
-servicio. La cola se conserva si no hay Wi-Fi y se limpia únicamente después de una
-sincronización exitosa.
+Copiar [.env.example](.env.example) como `.env.local` y poner la IP de la PC donde corre el backend:
 
-## Comandos
+```sh
+EXPO_PUBLIC_API_URL=http://192.168.0.10:8080/api
+```
+
+En el celular, `localhost` es el propio teléfono, por eso hace falta la IP de la PC. En Windows sale con `ipconfig`. `.env.local` no se sube al repositorio.
+
+## Ejecución
+
+Requiere Node.js 20 o superior, la app **Expo Go** en el celular, el backend levantado y el celular y la PC en la misma red Wi-Fi.
+
+```sh
+npm install
+npx expo start      # escanear el QR con Expo Go
+```
+
+Para probar en el navegador: `npm run web`. En ese caso, el backend tiene que permitir el origen `http://localhost:8081` en `CORS_ORIGIN`.
+
+**Si no conecta:**
+- Abrir `http://<IP-de-la-PC>:8080/api/ping` desde el navegador del celular. Si no responde, el problema es de red: puede ser el Firewall de Windows bloqueando el puerto 8080.
+- Después de cambiar `.env.local`, recargar la app.
+
+## Scripts
 
 | Comando | Qué hace |
 |---|---|
-| `npx expo start` | Inicia el servidor de desarrollo (QR para Expo Go) |
-| `npm run web` | Abre la app en el navegador |
+| `npx expo start` | Servidor de desarrollo (QR para Expo Go) |
+| `npm run android` / `npm run ios` / `npm run web` | Abre la app en esa plataforma |
 | `npm run lint` | Revisa el código con ESLint |
-| `npm run typecheck` | Valida los tipos TypeScript |
-| `npx expo install <paquete>` | Agrega una dependencia con la versión compatible con el SDK (usar en lugar de `npm install <paquete>`) |
-| `npx expo-doctor` | Diagnostica problemas de dependencias y configuración |
-
-### Compresión para `FormData`
-
-`src/utils/compresionImagenes.ts` expone `comprimirImagen(uri)`. La función convierte
-formatos como HEIC y PNG a JPEG, limita la dimensión máxima a 1200 px y devuelve
-`{ name, type, uri }`, listo para adjuntarlo como archivo en un `FormData` de React Native.
-
-El backend actual recibe imágenes como data URLs mediante `/imagenes`; este helper
-queda preparado para endpoints `multipart/form-data` sin modificar ese contrato existente.
-
-## Próximos pasos
-
-- Programar las pantallas con los datos de la API (los endpoints ya están en `src/services/api.js`).
-- Fotos de los servicios y de la jornada: `expo-image-picker` (cámara y galería).
-- Ubicación del técnico durante la jornada: `expo-location`. En el celular usa el GPS nativo, sin necesidad de HTTPS.
-- Mantener la sesión abierta: `expo-secure-store`.
+| `npm run typecheck` | Valida los tipos con TypeScript |
+| `npx expo install <paquete>` | Agrega una dependencia con la versión compatible con el SDK |

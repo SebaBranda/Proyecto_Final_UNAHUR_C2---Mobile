@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { imagenesApi } from '../services/api.js';
 import { colores } from '../theme/colores.js';
 
@@ -9,6 +10,8 @@ export default function GaleriaImagenes({ ids = [] }) {
   const [imagenes, establecerImagenes] = useState(null);
   const [error, establecerError] = useState('');
   const [abierta, establecerAbierta] = useState(null);
+  // Margen de arriba del teléfono (muesca o isla), para que la X no quede tapada.
+  const margenes = useSafeAreaInsets();
   const clave = ids.join(',');
 
   useEffect(() => {
@@ -36,7 +39,7 @@ export default function GaleriaImagenes({ ids = [] }) {
       <Modal visible={Boolean(abierta)} transparent animationType="fade" onRequestClose={() => establecerAbierta(null)}>
         <Pressable style={estilos.fondo} onPress={() => establecerAbierta(null)} accessibilityLabel="Cerrar imagen">
           {abierta ? <Image source={{ uri: abierta }} style={estilos.grande} resizeMode="contain" /> : null}
-          <Ionicons name="close-circle" size={36} color="#fff" style={estilos.cerrar} />
+          <Ionicons name="close-circle" size={44} color="#fff" style={[estilos.cerrar, { top: margenes.top + 12 }]} />
         </Pressable>
       </Modal>
     </>
@@ -49,5 +52,5 @@ const estilos = StyleSheet.create({
   error: { color: colores.error, fontSize: 13 },
   fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
   grande: { width: '100%', height: '80%' },
-  cerrar: { position: 'absolute', top: 48, right: 20 },
+  cerrar: { position: 'absolute', right: 20 },
 });

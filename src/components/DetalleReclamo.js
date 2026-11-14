@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { clientesApi, reclamosApi } from '../services/api.js';
 import { subirImagenes } from '../utils/imagenes.js';
 import { formatearFecha } from '../utils/formato.js';
 import { colores } from '../theme/colores.js';
 import GaleriaImagenes from './GaleriaImagenes.js';
 import SelectorFotos from './SelectorFotos.js';
+import VentanaCompleta from './VentanaCompleta.js';
 import { Aviso, Boton, Campo, ChipEstado, Dato, Tarjeta } from './ui.js';
 import { registrarEventoUbicacion } from '../services/eventoUbicacion.js';
 import { useSesion } from '../context/SesionContext.js';
@@ -220,14 +220,7 @@ function FinalizarReclamo({ reclamo, lugaresLibres, alFinalizar }) {
 // El detalle en una ventana completa (desde la lista de Mis asignaciones).
 export function ModalReclamo({ reclamo, tieneReclamoEnProgreso, cerrar, alIniciar, alFinalizar }) {
   return (
-    <Modal visible={Boolean(reclamo)} animationType="slide" onRequestClose={cerrar}>
-      <SafeAreaView style={estilos.modal} edges={['top', 'bottom']}>
-        <View style={estilos.barra}>
-          <Text style={estilos.tituloBarra}>Detalle del reclamo</Text>
-          <Pressable onPress={cerrar} accessibilityRole="button" accessibilityLabel="Cerrar" hitSlop={10}>
-            <Ionicons name="close" size={26} color={colores.texto} />
-          </Pressable>
-        </View>
+    <VentanaCompleta visible={Boolean(reclamo)} titulo="Detalle del reclamo" cerrar={cerrar}>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
           {reclamo ? (
             <DetalleReclamo
@@ -238,8 +231,7 @@ export function ModalReclamo({ reclamo, tieneReclamoEnProgreso, cerrar, alInicia
             />
           ) : null}
         </ScrollView>
-      </SafeAreaView>
-    </Modal>
+    </VentanaCompleta>
   );
 }
 
@@ -254,7 +246,4 @@ const estilos = StyleSheet.create({
   accion: { color: colores.primario, fontWeight: '700' },
   tituloFormulario: { fontSize: 16, fontWeight: '800', color: colores.texto },
   conexion: { gap: 8, paddingTop: 4, borderTopWidth: 1, borderTopColor: colores.borde },
-  modal: { flex: 1, backgroundColor: colores.fondo },
-  barra: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colores.borde, backgroundColor: colores.superficie },
-  tituloBarra: { fontSize: 17, fontWeight: '800', color: colores.texto },
 });

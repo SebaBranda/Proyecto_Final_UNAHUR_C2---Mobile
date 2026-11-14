@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { jornadasApi } from '../services/api.js';
 import { subirImagenes } from '../utils/imagenes.js';
 import { aNumero, formatearKm } from '../utils/formato.js';
 import { colores } from '../theme/colores.js';
 import SelectorFotos from './SelectorFotos.js';
+import VentanaCompleta from './VentanaCompleta.js';
 import { Aviso, Boton, Campo, Opciones } from './ui.js';
 import { NIVELES_COMBUSTIBLE } from '../utils/combustible.js';
 import { vaciarHistorial } from '../services/historialUbicacion.js';
@@ -81,14 +80,12 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
   };
 
   return (
-    <Modal visible={abierto} animationType="slide" onRequestClose={guardando ? undefined : cerrar}>
-      <SafeAreaView style={estilos.modal} edges={['top', 'bottom']}>
-        <View style={estilos.barra}>
-          <Text style={estilos.titulo}>{vehiculo ? 'Control final de jornada' : 'Finalizar jornada'}</Text>
-          <Pressable onPress={cerrar} disabled={guardando} accessibilityRole="button" accessibilityLabel="Cerrar" hitSlop={10}>
-            <Ionicons name="close" size={26} color={colores.texto} />
-          </Pressable>
-        </View>
+    <VentanaCompleta
+      visible={abierto}
+      titulo={vehiculo ? 'Control final de jornada' : 'Finalizar jornada'}
+      cerrar={cerrar}
+      bloqueada={guardando}
+    >
         <ScrollView contentContainerStyle={estilos.contenido} keyboardShouldPersistTaps="handled">
           {vehiculo ? (
             <>
@@ -122,15 +119,11 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
           <Aviso>{error}</Aviso>
           <Boton icono="log-out-outline" onPress={confirmar} cargando={guardando}>Finalizar jornada</Boton>
         </ScrollView>
-      </SafeAreaView>
-    </Modal>
+    </VentanaCompleta>
   );
 }
 
 const estilos = StyleSheet.create({
-  modal: { flex: 1, backgroundColor: colores.fondo },
-  barra: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colores.borde, backgroundColor: colores.superficie },
-  titulo: { fontSize: 17, fontWeight: '800', color: colores.texto },
   contenido: { padding: 16, gap: 14, paddingBottom: 40 },
   ayuda: { color: colores.textoSecundario, fontSize: 14 },
   etiqueta: { fontSize: 12, fontWeight: '700', color: colores.textoSecundario, textTransform: 'uppercase' },

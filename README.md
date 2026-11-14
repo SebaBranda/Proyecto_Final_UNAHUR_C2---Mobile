@@ -46,6 +46,7 @@ src/
   - Se registran puntos cada 5 minutos, al iniciar o finalizar la jornada y al cambiar el estado de un servicio.
   - La cola se envía completa cuando hay Wi-Fi (detectado con NetInfo), para no gastar datos móviles. Solo se borra después de que el envío salió bien.
 - **Fotos:** se toman con la cámara o se eligen de la galería. Antes de subirlas se comprimen a JPEG, de hasta 600 KB.
+- **Pantallas que se abren encima** (detalle del reclamo, inicio y cierre de jornada): usan `VentanaCompleta`. En iPhone se abren como una hoja que se cierra deslizándola hacia abajo; en Android ocupan toda la pantalla y se cierran con el botón "atrás".
 - **Permisos:** cámara y fotos (para las evidencias) y ubicación mientras la app está en uso (solo con la jornada activa). Los textos de cada permiso están configurados en [app.json](app.json).
 
 ## Configuración

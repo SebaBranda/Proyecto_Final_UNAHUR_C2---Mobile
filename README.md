@@ -54,10 +54,12 @@ src/
 Copiar [.env.example](.env.example) como `.env.local` y poner la IP de la PC donde corre el backend:
 
 ```sh
-EXPO_PUBLIC_API_URL=http://192.168.0.10:8080/api
+EXPO_PUBLIC_API_URL=https://159-54-146-55.sslip.io/api
 ```
 
-En el celular, `localhost` es el propio teléfono, por eso hace falta la IP de la PC. En Windows sale con `ipconfig`. `.env.local` no se sube al repositorio.
+La APK de distribución usa el backend publicado en Oracle Cloud mediante HTTPS. `.env.local` no se sube al repositorio.
+
+Las credenciales de Oracle Object Storage/S3 no se configuran en la app móvil: las conserva el backend y las imágenes se solicitan a través de la API.
 
 ## Ejecución
 
@@ -71,8 +73,19 @@ npx expo start      # escanear el QR con Expo Go
 Para probar en el navegador: `npm run web`. En ese caso, el backend tiene que permitir el origen `http://localhost:8081` en `CORS_ORIGIN`.
 
 **Si no conecta:**
-- Abrir `http://<IP-de-la-PC>:8080/api/ping` desde el navegador del celular. Si no responde, el problema es de red: puede ser el Firewall de Windows bloqueando el puerto 8080.
-- Después de cambiar `.env.local`, recargar la app.
+- Abrir `https://159-54-146-55.sslip.io/api/ping` desde el navegador del celular.
+- Después de cambiar `.env.local`, reiniciar Expo para que recargue las variables.
+
+## Generar APK descargable
+
+La configuración de [eas.json](eas.json) genera una APK release instalable fuera de Google Play:
+
+```powershell
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile preview
+```
+
+EAS devolverá un enlace para descargar la APK. La aplicación queda identificada como `com.unahur.galacticapp.demo` y utiliza la URL de Oracle configurada en `EXPO_PUBLIC_API_URL`.
 
 ## Scripts
 

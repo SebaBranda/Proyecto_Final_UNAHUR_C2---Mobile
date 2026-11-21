@@ -49,7 +49,7 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
       // Sin vehículo asignado no hay control del vehículo: se cierra la jornada directamente.
       if (!vehiculo) {
         await registrarEventoUbicacion(jornada.id, 'fin_jornada');
-        await vaciarHistorial(jornada.id).catch(() => false);
+        await vaciarHistorial().catch(() => false);
         const finalizada = await jornadasApi.finalizar(jornada.id, observaciones.trim() ? { observaciones: observaciones.trim() } : {});
         alFinalizar({ jornada: finalizada, vehiculo: null });
         return;
@@ -66,7 +66,7 @@ export default function CierreJornada({ abierto, jornada, vehiculo, cerrar, alFi
       // subir ahora (sin WiFi o sin conexión), los puntos quedan guardados y se suben después: no
       // impide cerrar la jornada.
       await registrarEventoUbicacion(jornada.id, 'fin_jornada');
-      await vaciarHistorial(jornada.id).catch(() => false);
+      await vaciarHistorial().catch(() => false);
       // Un solo pedido: el backend cierra la jornada y registra el control en el vehículo.
       const finalizada = await jornadasApi.finalizar(jornada.id, control);
       alFinalizar({

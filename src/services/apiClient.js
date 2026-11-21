@@ -8,6 +8,8 @@ export const URL_API = process.env.EXPO_PUBLIC_API_URL;
 // venceEn: momento (en milisegundos) en que vence, según los segundos que informa el backend.
 let tokenActual = null;
 let venceEn = 0;
+// true con la sesión iniciada (la tarea de segundo plano puede correr sin sesión).
+export const haySesion = () => Boolean(tokenActual);
 export const establecerToken = (token, segundosDeVida = 3600) => {
   tokenActual = token;
   venceEn = token ? Date.now() + segundosDeVida * 1000 : 0;

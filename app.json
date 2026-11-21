@@ -40,7 +40,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "GalacticApp comparte tu ubicación con tu coordinador mientras tu jornada está activa."
+          "locationWhenInUsePermission": "GalacticApp comparte tu ubicación con tu coordinador mientras tu jornada está activa.",
+          "locationAlwaysAndWhenInUsePermission": "GalacticApp registra el recorrido de tu jornada, aunque el celular esté bloqueado. Solo se usa mientras la jornada está activa.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true
         }
       ]
     ],

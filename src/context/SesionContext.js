@@ -1,22 +1,52 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import { authApi, jornadasApi } from '../services/api.js';
 import {
   alCerrarseLaSesion, alQuedarSinJornada, establecerToken, URL_API,
 } from '../services/apiClient.js';
 import { useUbicacionEnJornada } from './useUbicacionEnJornada.js';
+import { detenerSeguimiento } from '../services/ubicacionSegundoPlano.js';
 
 const SesionContext = createContext(null);
 
-// Traduce el error del login a un mensaje para el técnico.
+const SIN_INTERNET = 'No tenés conexión a internet. Conectate a una red Wi-Fi o activá los datos móviles e intentá de nuevo.';
+
+// Traduce el error del login a un mensaje para el técnico (sin detalles técnicos).
 function mensajeDeError(error) {
-  if (error.esRolInvalido) return error.message;
+  if (error.esRolInvalido || error.esSinInternet) return error.message;
   if (!URL_API) return 'Falta configurar EXPO_PUBLIC_API_URL en .env.local (ver README).';
-  if (error.response?.status === 401) return 'Usuario o contraseña incorrectos.';
-  if (error.response?.status === 400) return 'Completá el usuario y la contraseña.';
-  if (error.response?.status === 403) return error.response.data?.mensaje || 'No tenés permiso para usar la app.';
-  if (error.response?.status === 429) return error.response.data?.mensaje || 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.';
-  if (!error.response) return `No se pudo conectar con el servidor (${URL_API}). Revisá que el celular esté en la misma red que la PC.`;
+  const estado = error.response?.status;
+  if (estado === 401) return 'Usuario o contraseña incorrectos.';
+  if (estado === 400) return 'Completá el usuario y la contraseña.';
+  if (estado === 403) return error.response.data?.mensaje || 'No tenés permiso para usar la app.';
+  if (estado === 429) return error.response.data?.mensaje || 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.';
+  if (estado >= 500) return 'El servidor tuvo un problema. Intentá de nuevo en unos minutos.';
+  if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+    return 'El servidor tardó demasiado en responder. Revisá tu conexión e intentá de nuevo.';
+  }
+  if (!error.response) {
+    // En desarrollo (Expo Go) se muestra la dirección para ayudar a encontrar el problema.
+    return __DEV__
+      ? `No se pudo conectar con el servidor (${URL_API}). Revisá que el celular esté en la misma red que la PC.`
+      : 'No se pudo conectar con el servidor. Revisá tu conexión a internet e intentá de nuevo.';
+  }
   return 'No se pudo iniciar sesión. Intentá nuevamente.';
+}
+
+// Sin conexión se avisa enseguida, sin esperar a que el pedido al servidor se agote (10 segundos).
+// isInternetReachable puede ser null mientras el celular lo averigua: solo cuenta un "no" seguro.
+async function comprobarConexion() {
+  try {
+    const red = await NetInfo.fetch();
+    if (red.isConnected === false || red.isInternetReachable === false) {
+      const error = new Error(SIN_INTERNET);
+      error.esSinInternet = true;
+      throw error;
+    }
+  } catch (error) {
+    if (error.esSinInternet) throw error;
+    // Si no se pudo averiguar, se intenta igual: el pedido dirá si hay conexión.
+  }
 }
 
 export function SesionProvider({ children }) {
@@ -43,6 +73,7 @@ export function SesionProvider({ children }) {
 
   const iniciarSesion = useCallback(async (usuario, contrasena) => {
     try {
+      await comprobarConexion();
       const respuesta = await authApi.iniciarSesion({
         usuario: usuario.trim().toLowerCase(),
         contrasena,
@@ -88,8 +119,12 @@ export function SesionProvider({ children }) {
     return jornada;
   }, [sesion, actualizarSesion]);
 
-  // Con la jornada activa, la ubicación del técnico se manda al mapa del admin cada 5 minutos.
-  const errorUbicacion = useUbicacionEnJornada(sesion?.usuario?.id, sesion?.jornadaActiva);
+  // Con la jornada activa se registra el recorrido del técnico cada 5 minutos (en segundo plano si
+  // dio el permiso de ubicación "siempre"). errorUbicacion: aviso para la pantalla de la jornada.
+  const { error: errorUbicacion, enSegundoPlano: ubicacionEnSegundoPlano } = useUbicacionEnJornada(
+    sesion?.usuario?.id,
+    sesion?.jornadaActiva,
+  );
 
   const cerrarSesion = useCallback(async () => {
     try {
@@ -97,6 +132,8 @@ export function SesionProvider({ children }) {
     } catch {
       // Sin conexión: la sesión vence sola en el backend.
     }
+    // Al salir de la sesión deja de registrarse el recorrido.
+    await detenerSeguimiento().catch(() => undefined);
     establecerToken(null);
     establecerAviso('');
     establecerSesion(null);
@@ -104,9 +141,9 @@ export function SesionProvider({ children }) {
 
   const valor = useMemo(
     () => ({
-      sesion, aviso, errorUbicacion, iniciarSesion, actualizarSesion, iniciarJornada, cerrarSesion,
+      sesion, aviso, errorUbicacion, ubicacionEnSegundoPlano, iniciarSesion, actualizarSesion, iniciarJornada, cerrarSesion,
     }),
-    [sesion, aviso, errorUbicacion, iniciarSesion, actualizarSesion, iniciarJornada, cerrarSesion],
+    [sesion, aviso, errorUbicacion, ubicacionEnSegundoPlano, iniciarSesion, actualizarSesion, iniciarJornada, cerrarSesion],
   );
   return <SesionContext.Provider value={valor}>{children}</SesionContext.Provider>;
 }

@@ -67,7 +67,7 @@ const kilometrajeFinal = (jornada) => jornada.controlFinal?.kilometraje
 // Jornada: iniciar y finalizar la jornada, el desempeño por período y las jornadas trabajadas.
 export default function Jornada() {
   const {
-    sesion, actualizarSesion, iniciarJornada, errorUbicacion,
+    sesion, actualizarSesion, iniciarJornada, errorUbicacion, ubicacionEnSegundoPlano,
   } = useSesion();
   const { jornadaActiva, vehiculo } = sesion;
   const [ahora, establecerAhora] = useState(() => Date.now());
@@ -208,7 +208,11 @@ export default function Jornada() {
             ) : null}
             <Boton icono="log-out-outline" onPress={() => { establecerExito(''); establecerCierreAbierto(true); }}>Finalizar jornada</Boton>
             {errorUbicacion ? <Aviso>{errorUbicacion}</Aviso> : (
-              <Text style={estilos.secundario}>Tu ubicación se comparte con el mapa mientras la app está abierta.</Text>
+              <Text style={estilos.secundario}>
+                {ubicacionEnSegundoPlano
+                  ? 'Tu recorrido se registra aunque bloquees el celular. Se detiene al finalizar la jornada.'
+                  : 'Tu ubicación se comparte con el mapa mientras la app está abierta.'}
+              </Text>
             )}
           </>
         ) : (

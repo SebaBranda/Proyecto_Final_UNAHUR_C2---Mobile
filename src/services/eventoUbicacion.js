@@ -3,7 +3,7 @@ import { agregarPunto } from './historialUbicacion.js';
 
 export async function registrarEventoUbicacion(jornadaId, evento) {
   try {
-    const posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    const posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
     return agregarPunto(jornadaId, {
       latitud: posicion.coords.latitude,
       longitud: posicion.coords.longitude,

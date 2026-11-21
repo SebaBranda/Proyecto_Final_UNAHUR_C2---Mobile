@@ -1,6 +1,9 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SesionProvider, useSesion } from '../context/SesionContext.js';
+// Define la tarea que registra el recorrido en segundo plano. Expo exige cargarla al abrir la app,
+// fuera de los componentes: puede ejecutarse sin ninguna pantalla abierta.
+import '../services/ubicacionSegundoPlano.js';
 
 // Rutas protegidas: sin sesión solo se puede ver el login; con sesión, las pantallas del técnico.
 // Al iniciar o cerrar sesión, Expo Router lleva solo a la pantalla que corresponde.

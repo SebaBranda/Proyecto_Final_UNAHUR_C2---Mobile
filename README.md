@@ -26,11 +26,12 @@ src/
   components/                piezas de UI y formularios (inicio y cierre de jornada, fotos, detalle)
   context/
     SesionContext.js         usuario, jornada activa y vehículo
-    useUbicacionEnJornada.js registra la ubicación cada 5 minutos mientras la jornada está activa
+    useUbicacionEnJornada.js registra el recorrido mientras la jornada está activa
   services/
     apiClient.js             Axios con la URL de la API y el token
     api.js                   llamadas a la API (los mismos endpoints que la web)
     historialUbicacion.js    cola local del recorrido y su sincronización
+    ubicacionSegundoPlano.js tarea que registra el recorrido con el celular bloqueado
   utils/                     compresión de imágenes, formatos de fecha y kilómetros, combustible
   theme/colores.js           colores de marca (los mismos de la web)
 ```
@@ -42,12 +43,15 @@ src/
   - El token se guarda solo en memoria: al cerrar la app hay que volver a ingresar.
   - Hay una única sesión por usuario: si el técnico ingresa desde la web u otro celular, esta sesión se cierra y la app vuelve al login con un aviso.
 - **Recorrido:**
-  - Mientras la jornada está activa, cada posición se guarda en una cola en `AsyncStorage`.
-  - Se registran puntos cada 5 minutos, al iniciar o finalizar la jornada y al cambiar el estado de un servicio.
-  - La cola se envía completa cuando hay Wi-Fi (detectado con NetInfo), para no gastar datos móviles. Solo se borra después de que el envío salió bien.
+  - Mientras la jornada está activa se registra la posición con GPS: una posición cada 30 segundos como máximo, y solo se guarda un punto si el técnico se movió más de 75 metros. Quieto no se guarda nada, y se descartan las posiciones con más de 50 metros de error. Así la línea sigue las calles sin gastar batería de más.
+  - También se guarda un punto al iniciar y al finalizar la jornada, y al iniciar un reclamo.
+  - **En segundo plano:** al iniciar la jornada, la app explica para qué necesita la ubicación "Permitir todo el tiempo" y la pide. Con ese permiso, un servicio de Android (`expo-location` + `expo-task-manager`) registra el recorrido aunque el celular esté bloqueado o la app cerrada, y muestra una notificación fija mientras tanto. Las posiciones llegan en tandas cada 2 minutos para ahorrar batería. Se detiene al finalizar la jornada, al salir de la sesión o, por seguridad, a las 16 horas.
+  - Sin ese permiso, o en Expo Go (que no permite tareas en segundo plano), el recorrido se registra solo con la app abierta, con los mismos criterios, y la pantalla de la jornada lo avisa. Para probar el segundo plano hay que instalar la APK.
+  - Cada punto se guarda primero en una cola en `AsyncStorage`, con su jornada, y se envía al backend en tandas: con Wi-Fi enseguida, y con datos móviles como máximo cada 5 minutos (una jornada de 80 km son menos de 0,5 MB). Al finalizar la jornada se envía todo. Las coordenadas se guardan con 5 decimales (1 metro de precisión).
+  - Los puntos solo se envían con la app abierta y la sesión iniciada: los que se guardan en segundo plano se envían al volver a la app. Si se cierra una jornada sin conexión, sus puntos esperan y se envían después, aunque ya haya empezado otra.
 - **Fotos:** se toman con la cámara o se eligen de la galería. Antes de subirlas se comprimen a JPEG, de hasta 600 KB.
 - **Pantallas que se abren encima** (detalle del reclamo, inicio y cierre de jornada): usan `VentanaCompleta`. En iPhone se abren como una hoja que se cierra deslizándola hacia abajo; en Android ocupan toda la pantalla y se cierran con el botón "atrás".
-- **Permisos:** cámara y fotos (para las evidencias) y ubicación mientras la app está en uso (solo con la jornada activa). Los textos de cada permiso están configurados en [app.json](app.json).
+- **Permisos:** cámara y fotos (para las evidencias) y ubicación (solo con la jornada activa): mientras la app está en uso y, si el técnico lo acepta, también en segundo plano. Los textos de cada permiso están configurados en [app.json](app.json). Si la app se publicara en Google Play, la ubicación en segundo plano requiere justificar su uso en la revisión de Google.
 
 ## Configuración
 
